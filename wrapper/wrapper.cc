@@ -45,15 +45,15 @@ int findChannels(NDS::connection* conn, const ChannelFilter* filter, Channel** c
     assert(conn != nullptr && filter != nullptr && channels != nullptr && errbuf != nullptr);
     try {
         auto channels_vec = conn->find_channels(filter->channelGlob,
-                                                filter->channelTypeMask,
-                                                filter->dataTypeMask,
+                                                (NDS::channel::channel_type)filter->channelTypeMask,
+                                                (NDS::channel::data_type)filter->dataTypeMask,
                                                 filter->minSampleRate,
                                                 filter->maxSampleRate);
         *channels = (Channel*) calloc(channels_vec.size() + 1, sizeof(Channel));
         for (int i=0; i < channels_vec.size(); i++) {
             (*channels)[i].name = strdup(channels_vec[i]->Name().c_str());
-            (*channels)[i].type = channels_vec[i]->Type();
-            (*channels)[i].dataType = channels_vec[i]->DataType();
+            (*channels)[i].type = (channel_type) channels_vec[i]->Type();
+            (*channels)[i].dataType = (data_type) channels_vec[i]->DataType();
             (*channels)[i].sampleRate = channels_vec[i]->SampleRate();
             (*channels)[i].gain = channels_vec[i]->Gain();
             (*channels)[i].slope = channels_vec[i]->Slope();

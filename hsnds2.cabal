@@ -10,6 +10,7 @@ maintainer:          shaun.ren@linux.com
 copyright:           2018 Shaun Ren
 category:            Web
 build-type:          Simple
+build-tools:         c2hs
 extra-source-files:  README.md
 cabal-version:       >=1.10
 

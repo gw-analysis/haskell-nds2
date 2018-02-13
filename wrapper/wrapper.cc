@@ -1,10 +1,17 @@
-#include "wrapper.h"
 #include <nds_connection.hh>
 #include "buffer_helper.h"
+#include "wrapper.h"
 #include <cassert>
 #include <cstdlib>
 #include <cstring>
 using namespace std;
+
+inline void copy_errmsg(char* errbuf, const char* err)
+{
+    strncpy(errbuf, err, ERRBUF_LENGTH);
+    // Null-terminate the buffer in case of overflow.
+    errbuf[ERRBUF_LENGTH] = '\0';
+}
 
 extern "C" {
 
@@ -15,7 +22,7 @@ NDS::connection* connect(const char* hostname, int port, int protocol, char* err
         return new NDS::connection(hostname, port,
                                    (NDS::connection::protocol_type)protocol);
     } catch (const exception& ex) {
-        strncpy(errbuf, ex.what(), ERRBUF_LENGTH);
+        copy_errmsg(errbuf, ex.what());
         return nullptr;
     }
 }
@@ -57,7 +64,7 @@ int findChannels(NDS::connection* conn, const ChannelFilter* filter, Channel** c
 
         return channels_vec.size();
     } catch (const exception& ex) {
-        strncpy(errbuf, ex.what(), ERRBUF_LENGTH);
+        copy_errmsg(errbuf, ex.what());
         return -1;
     }
 }
@@ -98,7 +105,7 @@ int fetch(NDS::connection* conn, int64_t startGpsTime, int64_t endGpsTime, const
             }
         }
     } catch (const exception& ex) {
-        strncpy(errbuf, ex.what(), ERRBUF_LENGTH);
+        copy_errmsg(errbuf, ex.what());
 
         // Free any allocated buffers.
         for (size_t i = 0; i < nChannels; i++)

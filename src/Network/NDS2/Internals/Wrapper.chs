@@ -15,6 +15,7 @@ import Control.Exception
 import Data.Typeable
 import Foreign.ForeignPtr
 import qualified Data.Vector.Storable as V
+import Unsafe.Coerce
 
 {#context prefix = "hsnds2"#}
 
@@ -53,6 +54,15 @@ withStringArray ss f = do
   ps <- mapM (\s -> withCString s return) ss
   withArray ps f
 
+-- Map V.Vector CDouble -> V.Vector Double.
+-- In NHC, CDouble and Double are _not_ the same type.
+mapRealToFrac :: (Real a, Fractional b) => V.Vector a -> V.Vector b
+#ifdef __NHC__
+mapRealToFrac = V.map realToFrac
+#else
+mapRealToFrac = unsafeCoerce -- CAVEAT EMPTOR.
+#endif
+
 
 -- peekCString :: CString -> IO String
 
@@ -65,7 +75,7 @@ withStringArray ss f = do
 
 {#fun unsafe disconnect { `Connection' } -> `()' #}
 
-fetch :: Connection -> GpsTime -> GpsTime -> [String] -> IO [V.Vector CDouble]
+fetch :: Connection -> GpsTime -> GpsTime -> [String] -> IO [V.Vector Double]
 fetch conn startTime endTime channelList =
   withConnection conn $ \c_conn ->
   withStringArray channelList $ \c_channelList ->
@@ -80,7 +90,7 @@ fetch conn startTime endTime channelList =
 
     forM (zip buffers bufferLengths) $ \(c_buf, bufLength) -> do
       bufPtr <- newForeignPtr hsnds2_free_buffer c_buf
-      return $ V.unsafeFromForeignPtr0 bufPtr (fromIntegral bufLength)
+      return . mapRealToFrac $ V.unsafeFromForeignPtr0 bufPtr (fromIntegral bufLength)
 
   where nChannels = length channelList
 

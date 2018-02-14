@@ -41,16 +41,12 @@ void hsnds2_destroy(NDS::connection* conn)
 
 // C allocates list of channels; caller responsible for fereing them.
 // channels is NULL-terminated.
-int hsnds2_find_channels(NDS::connection* conn, const channel_filter* filter, channel* channels[], char* errbuf)
+int hsnds2_find_channels(NDS::connection* conn, const char* channelGlob, channel** channels, char* errbuf)
 {
-    assert(conn != nullptr && filter != nullptr && channels != nullptr && errbuf != nullptr);
+    assert(conn != nullptr && channelGlob != nullptr && channels != nullptr && errbuf != nullptr);
 
     try {
-        auto channels_vec = conn->find_channels(filter->channelGlob,
-                                                (NDS::channel::channel_type)filter->channelTypeMask,
-                                                (NDS::channel::data_type)filter->dataTypeMask,
-                                                filter->minSampleRate,
-                                                filter->maxSampleRate);
+        auto channels_vec = conn->find_channels(channelGlob);
         *channels = (channel*) calloc(channels_vec.size() + 1, sizeof(channel));
         for (int i=0; i < channels_vec.size(); i++) {
             (*channels)[i].name = strdup(channels_vec[i]->Name().c_str());
@@ -75,14 +71,14 @@ void hsnds2_free_channels(channel* channels)
 {
     assert(channels != nullptr);
     channel* cur_channel = channels;
-    while (cur_channel->name != nullptr) {
+    for (;cur_channel->name != nullptr; ++cur_channel) {
         free(cur_channel->name);
         free(cur_channel->units);
     }
     free(channels);
 }
 
-int hsnds2_fetch(NDS::connection* conn, int64_t startGpsTime, int64_t endGpsTime, const char* channelList[], size_t num_channels, double* buffers[], size_t buffer_lengths[], char* errbuf)
+int hsnds2_fetch(NDS::connection* conn, gps_time_t startGpsTime, gps_time_t endGpsTime, const char* channelList[], size_t num_channels, double* buffers[], size_t buffer_lengths[], char* errbuf)
 {
     assert(conn != nullptr && buffers != nullptr);
 

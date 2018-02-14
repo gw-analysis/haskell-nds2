@@ -1,5 +1,6 @@
 {-# LANGUAGE ForeignFunctionInterface #-}
 {-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE TemplateHaskell #-}
 module Network.NDS2.Internals.Wrapper (Port, Connection, NDSError, connect, disconnect) where
 
 #include <wrapper.h>
@@ -7,30 +8,60 @@ module Network.NDS2.Internals.Wrapper (Port, Connection, NDSError, connect, disc
 import Foreign.Ptr
 import Foreign.Marshal.Alloc
 import Foreign.Marshal.Array
-import Foreign.Storable (pokeByteOff)
+import Foreign.Storable
 import System.IO.Unsafe
 import Foreign.C
 import Control.Monad
-import Control.Applicative ((<$>))
+import Control.Applicative ((<$>), (<*>))
 import Control.Exception
 import Data.Typeable
 import Foreign.ForeignPtr
 import qualified Data.Vector.Storable as V
 import Unsafe.Coerce
 
+import Control.Lens
+import Control.Arrow ((***))
+
 {#context prefix = "hsnds2"#}
+
+type Port    = {#type port_t#}
+type GpsTime = {#type gps_time_t#}
+type SizeT   = {#type size_t#}
+
+-- | Structures
+{#pointer *connection as Connection foreign finalizer destroy newtype#}
+{#pointer *channel as ChannelsPtr foreign -> Channel #}
 
 {#enum channel_type as ChannelType {underscoreToCase} deriving (Show, Eq) #}
 {#enum data_type as DataType {underscoreToCase} deriving (Show, Eq) #}
 {#enum protocol_type as ProtocolType {underscoreToCase} deriving (Show, Eq) #}
 
-type Port    = {#type port_t#}
-type GpsTime = {#type gps_time#}
-type SizeT   = {#type size_t#}
+data Channel = Channel
+  { _name       :: String
+  , _type       :: ChannelType
+  , _dataType   :: DataType
+  , _sampleRate :: Float
+  , _gain       :: Float
+  , _slope      :: Float
+  , _offset     :: Float
+  } deriving (Show, Eq)
 
--- | Structures
-{#pointer *connection as Connection foreign finalizer destroy newtype#}
+makeFields ''Channel
 
+instance Storable Channel where
+  sizeOf _ = {#sizeof channel #}
+  alignment _ = {#alignof channel #}
+
+  peek p = Channel
+    <$> ({#get channel->name #} p >>= peekCString)
+    <*> liftM (toEnum . fromIntegral) ({#get channel->type #} p)
+    <*> liftM (toEnum . fromIntegral) ({#get channel->dataType #} p)
+    <*> liftM realToFrac ({#get channel->sampleRate #} p)
+    <*> liftM realToFrac ({#get channel->gain #} p)
+    <*> liftM realToFrac ({#get channel->slope #} p)
+    <*> liftM realToFrac ({#get channel->offset #} p)
+
+  poke _ = undefined
 
 -- | Exception
 data NDSError = NDSError String deriving (Show, Typeable)
@@ -58,13 +89,12 @@ withStringArray ss f = do
   withArray ps f
 
 
--- Map V.Vector CDouble -> V.Vector Double.
+vmapCDoubleToDouble :: V.Vector CDouble -> V.Vector Double
 -- In NHC, CDouble and Double are _not_ the same type.
-mapRealToFrac :: (Real a, Fractional b) => V.Vector a -> V.Vector b
 #ifdef __NHC__
-mapRealToFrac = V.map realToFrac
+vmapCDoubleToDouble = V.map realToFrac
 #else
-mapRealToFrac = unsafeCoerce -- CAVEAT EMPTOR.
+vmapCDoubleToDouble = unsafeCoerce -- CAVEAT EMPTOR. Works for GHC.
 #endif
 
 
@@ -79,7 +109,9 @@ mapRealToFrac = unsafeCoerce -- CAVEAT EMPTOR.
 
 {#fun unsafe disconnect { `Connection' } -> `()' #}
 
-fetch :: Connection -> GpsTime -> GpsTime -> [String] -> IO [V.Vector Double]
+type ChannelNames = [String]
+
+fetch :: Connection -> GpsTime -> GpsTime -> ChannelNames -> IO [V.Vector Double]
 fetch conn startTime endTime channelList =
   withConnection conn $ \c_conn ->
   withStringArray channelList $ \c_channelList ->
@@ -95,8 +127,8 @@ fetch conn startTime endTime channelList =
     forM (zip buffers bufferLengths) $ \(c_buf, bufLength) -> do
       bufPtr <- newForeignPtr hsnds2_free_buffer c_buf
 
-      -- mapRealToFrac maps Vector CDouble to Vector Double.
-      return . mapRealToFrac $ V.unsafeFromForeignPtr0 bufPtr (fromIntegral bufLength)
+      -- vmapCDoubleToDouble maps Vector CDouble to Vector Double.
+      return . vmapCDoubleToDouble $ V.unsafeFromForeignPtr0 bufPtr (fromIntegral bufLength)
 
   where nChannels = length channelList
 
@@ -124,6 +156,30 @@ getParameter conn param = do
   ,               `String'      -- parameter
   , allocaErrBuf- `String' checkErrBuf*-
   } -> `CString' #}
+
+type ChannelGlob = String
+
+findChannels :: Connection -> ChannelGlob -> IO [Channel]
+findChannels conn chanGlob = do
+  (len, channelsPtr) <- findChannels_ conn chanGlob
+  withForeignPtr channelsPtr $ peekArray len
+
+
+peekChannels :: Ptr (Ptr Channel) -> IO (ChannelsPtr)
+peekChannels ptr = peek ptr >>= newForeignPtr hsnds2_free_channels
+
+
+-- findChannels_ :: Connection -> ChannelGlob -> IO (Int, Ptr Channel)
+{#fun unsafe find_channels as findChannels_
+  { `Connection'
+  , `String'    -- channelGlob
+  , alloca- `ChannelsPtr' peekChannels*
+  , allocaErrBuf- `String' checkErrBuf*-
+  } -> `Int' #}
+
+
+foreign import ccall unsafe "Wrapper.h &hsnds2_free_channels"
+  hsnds2_free_channels :: FinalizerPtr Channel
 
 
 --------------------------------------------------------------------------

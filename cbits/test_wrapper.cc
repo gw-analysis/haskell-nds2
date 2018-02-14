@@ -9,11 +9,15 @@ using namespace std;
 int main()
 {
     char errbuf[256];
-    auto conn = hsnds2_connect("127.0.0.1", 8088, PROTOCOL_TRY, errbuf);
+    auto conn = hsnds2_connect("10.68.10.122", 8088, PROTOCOL_TRY, errbuf);
     if (*errbuf) {
         cerr << "cerr:" << errbuf << endl;
-    } else {
-        hsnds2_destroy(conn);
+        return 0;
     }
+
+    channel** channels_ptr = new channel*;
+    hsnds2_find_channels(conn, "*CRY-TEMPERATURE*", channels_ptr, errbuf);
+    hsnds2_free_channels(*channels_ptr);
+    hsnds2_destroy(conn);
     return 0;
 }

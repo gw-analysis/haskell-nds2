@@ -18,7 +18,7 @@ typedef struct _connection connection;
 #endif // __cplusplus
 
 typedef int32_t port_t;
-typedef int64_t gps_time;
+typedef int64_t gps_time_t;
 
 typedef enum {
       CHANNEL_TYPE_UNKNOWN = 0,	///< Unknown
@@ -60,14 +60,6 @@ typedef struct {
     char* units;
  } channel;
 
-typedef struct {
-    char* channelGlob;
-    channel_type channelTypeMask;
-    data_type dataTypeMask;
-    float minSampleRate;
-    float maxSampleRate;
-} channel_filter;
-
 // Error message must be allocated to be >= 255 characters long.
 #define ERRBUF_LENGTH 255
 
@@ -81,17 +73,18 @@ void hsnds2_disconnect(connection* conn);
 void hsnds2_destroy(connection* conn);
 
 // C allocates list of channels; caller responsible for fereing them, by calling freeChannels.
+// Returns number of channels found.
 int hsnds2_find_channels(connection* conn,
-                         const channel_filter* filter,
-                         channel* channels[],
+                         const char* channelGlob,
+                         channel** channels,
                          char* errbuf);
 
 void hsnds2_free_channels(channel* channels);
 
 // Caller is responsible for allocating the pointer array for buffers, not buffers themselves
 int hsnds2_fetch(connection* conn,
-                 gps_time startgps_time,
-                 gps_time endgps_time,
+                 gps_time_t startgps_time,
+                 gps_time_t endgps_time,
                  const char* channel_list[],
                  size_t num_channels,
                  double* buffers[],

@@ -145,17 +145,22 @@ foreign import ccall unsafe "Wrapper.h &hsnds2_free_buffer"
 
 getParameter :: Connection -> String -> IO (Maybe String)
 getParameter conn param = do
-  c_val <- getParameter_ conn param
-  if c_val == nullPtr
-  then return Nothing
-  else Just <$> peekCString c_val
+  fc_val <- getParameter_ conn param
+  withForeignPtr fc_val $ \c_val ->
+    if c_val == nullPtr
+    then return Nothing
+    else Just <$> peekCString c_val
 
+type ForeignCString = ForeignPtr CChar
+
+newForeignCString :: CString -> IO ForeignCString
+newForeignCString = newForeignPtr c_free
 
 {#fun unsafe get_parameter as getParameter_
   {               `Connection'
   ,               `String'      -- parameter
   , allocaErrBuf- `String' checkErrBuf*-
-  } -> `CString' #}
+  } -> `ForeignCString' newForeignCString*  #}
 
 type ChannelGlob = String
 
@@ -178,14 +183,17 @@ peekChannels ptr = peek ptr >>= newForeignPtr hsnds2_free_channels
   } -> `Int' #}
 
 
-foreign import ccall unsafe "Wrapper.h &hsnds2_free_channels"
+foreign import ccall unsafe "wrapper.h &hsnds2_free_channels"
   hsnds2_free_channels :: FinalizerPtr Channel
 
+foreign import ccall unsafe "stdlib.h &free"
+  c_free :: FinalizerPtr a
 
 --------------------------------------------------------------------------
 {- Test Commands:
 conn <- connect "10.68.10.122" 8088 ProtocolTry
 let chanList = ["K1:PEM-TEMPERATURE_RACK_IMC", "K1:PEM-HUMIDITY_RACK_IMC"]
 setParameter conn "GAP_HANDLER" "STATIC_HANDLER_NAN"
+findChannels conn "*CRY-TEMPERATURE*"
 res <- fetch conn 1202078040 1202078160 chanList
 -}

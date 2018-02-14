@@ -72,6 +72,16 @@ void hsnds2_disconnect(connection* conn);
 
 void hsnds2_destroy(connection* conn);
 
+// Returns a bool (0/1) indicating failure or success.
+int hsnds2_set_parameter(connection* conn,
+                         const char* param,
+                         const char* value,
+                         char* errbuf);
+
+char* hsnds2_get_parameter(connection* conn,
+                           const char* param,
+                           char* errbuf);
+
 // C allocates list of channels; caller responsible for fereing them, by calling freeChannels.
 // Returns number of channels found.
 int hsnds2_find_channels(connection* conn,
@@ -93,16 +103,6 @@ int hsnds2_fetch(connection* conn,
 
 // Free a single buffer allocated by hsnds2_fetch().
 void hsnds2_free_buffer(double* buffer);
-
-// Returns a bool (0/1) indicating failure or success.
-int hsnds2_set_parameter(connection* conn,
-                         const char* param,
-                         const char* value,
-                         char* errbuf);
-
-char* hsnds2_get_parameter(connection* conn,
-                           const char* param,
-                           char* errbuf);
 
 #ifdef __cplusplus
 }

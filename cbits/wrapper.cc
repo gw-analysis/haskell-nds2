@@ -32,11 +32,43 @@ void hsnds2_disconnect(NDS::connection* conn)
 {
     assert(conn != nullptr);
     conn->close();
+
+    
 }
 
 void hsnds2_destroy(NDS::connection* conn)
 {
     delete conn;
+}
+
+int hsnds2_set_parameter(NDS::connection* conn, const char* param, const char* value, char* errbuf)
+{
+    assert(conn != nullptr && param != nullptr && value != nullptr && errbuf != nullptr);
+
+    bool success = false;
+    try {
+        success = conn->set_parameter(param, value);
+    } catch (const exception& ex) {
+        copy_errmsg(errbuf, ex.what());
+        return false;
+    }
+    return (int)success;
+}
+
+char* hsnds2_get_parameter(NDS::connection* conn, const char* param, char* errbuf)
+{
+    assert(conn != nullptr && param != nullptr && errbuf != nullptr);
+
+    try {
+        const string& val = conn->get_parameter(param);
+        if (val.empty())
+            return nullptr;
+        else
+            return strdup(val.c_str());
+    } catch (const exception& ex) {
+        copy_errmsg(errbuf, ex.what());
+        return nullptr;
+    }
 }
 
 // C allocates list of channels; caller responsible for fereing them.
@@ -123,36 +155,6 @@ void hsnds2_free_buffer(double* buffer)
 {
     if (buffer != nullptr)
         free(buffer);
-}
-
-int hsnds2_set_parameter(NDS::connection* conn, const char* param, const char* value, char* errbuf)
-{
-    assert(conn != nullptr && param != nullptr && value != nullptr && errbuf != nullptr);
-
-    bool success = false;
-    try {
-        success = conn->set_parameter(param, value);
-    } catch (const exception& ex) {
-        copy_errmsg(errbuf, ex.what());
-        return false;
-    }
-    return (int)success;
-}
-
-char* hsnds2_get_parameter(NDS::connection* conn, const char* param, char* errbuf)
-{
-    assert(conn != nullptr && param != nullptr && errbuf != nullptr);
-
-    try {
-        const string& val = conn->get_parameter(param);
-        if (val.empty())
-            return nullptr;
-        else
-            return strdup(val.c_str());
-    } catch (const exception& ex) {
-        copy_errmsg(errbuf, ex.what());
-        return nullptr;
-    }
 }
 
 } // extern "C"

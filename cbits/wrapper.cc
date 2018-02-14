@@ -18,7 +18,6 @@ extern "C" {
 connection* hsnds2_connect(const char* hostname, port_t port, protocol_type protocol, char* errbuf)
 {
     assert(hostname != nullptr && errbuf != nullptr);
-    *errbuf = '\0';
 
     try {
         return new NDS::connection(string(hostname), port,
@@ -45,7 +44,6 @@ void hsnds2_destroy(NDS::connection* conn)
 int hsnds2_find_channels(NDS::connection* conn, const channel_filter* filter, channel* channels[], char* errbuf)
 {
     assert(conn != nullptr && filter != nullptr && channels != nullptr && errbuf != nullptr);
-    *errbuf = '\0';
 
     try {
         auto channels_vec = conn->find_channels(filter->channelGlob,
@@ -87,7 +85,6 @@ void hsnds2_free_channels(channel* channels)
 int hsnds2_fetch(NDS::connection* conn, int64_t startGpsTime, int64_t endGpsTime, const char* channelList[], size_t num_channels, double* buffers[], size_t buffer_lengths[], char* errbuf)
 {
     assert(conn != nullptr && buffers != nullptr);
-    *errbuf = '\0';
 
     if (startGpsTime > endGpsTime) {
         strcpy(errbuf, "Invalid time interval");
@@ -132,9 +129,10 @@ void hsnds2_free_buffer(double* buffer)
         free(buffer);
 }
 
-bool hsnds2_set_parameter(NDS::connection* conn, const char* param, const char* value, char* errbuf)
+int hsnds2_set_parameter(NDS::connection* conn, const char* param, const char* value, char* errbuf)
 {
     assert(conn != nullptr && param != nullptr && value != nullptr && errbuf != nullptr);
+
     bool success = false;
     try {
         success = conn->set_parameter(param, value);
@@ -142,12 +140,13 @@ bool hsnds2_set_parameter(NDS::connection* conn, const char* param, const char* 
         copy_errmsg(errbuf, ex.what());
         return false;
     }
-    return success;
+    return (int)success;
 }
 
 char* hsnds2_get_parameter(NDS::connection* conn, const char* param, char* errbuf)
 {
     assert(conn != nullptr && param != nullptr && errbuf != nullptr);
+
     try {
         const char* value = conn->get_parameter(param).c_str();
         return strdup(value);

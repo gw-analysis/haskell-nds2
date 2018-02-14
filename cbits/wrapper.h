@@ -12,8 +12,6 @@ using connection = NDS::connection;
 
 #else // __cplusplus
 
-#include <stdbool.h>
-
 // Opaque NDSconnection struct (C++ class).
 typedef struct _connection connection;
 
@@ -103,10 +101,11 @@ int hsnds2_fetch(connection* conn,
 // Free a single buffer allocated by hsnds2_fetch().
 void hsnds2_free_buffer(double* buffer);
 
-bool hsnds2_set_parameter(connection* conn,
-                          const char* param,
-                          const char* value,
-                          char* errbuf);
+// Returns a bool (0/1) indicating failure or success.
+int hsnds2_set_parameter(connection* conn,
+                         const char* param,
+                         const char* value,
+                         char* errbuf);
 
 char* hsnds2_get_parameter(connection* conn,
                            const char* param,

@@ -7,6 +7,7 @@ module Network.NDS2.Internals.Wrapper (Port, Connection, NDSError, connect, disc
 import Foreign.Ptr
 import Foreign.Marshal.Alloc
 import Foreign.Marshal.Array
+import Foreign.Storable (pokeByteOff)
 import System.IO.Unsafe
 import Foreign.C
 import Control.Monad
@@ -27,17 +28,19 @@ type Port    = {#type port_t#}
 type GpsTime = {#type gps_time#}
 type SizeT   = {#type size_t#}
 
--- Structures
+-- | Structures
 {#pointer *connection as Connection foreign finalizer destroy newtype#}
 
 
--- Exception
+-- | Exception
 data NDSError = NDSError String deriving (Show, Typeable)
 instance Exception NDSError
 
 -- | Allocate a char* buffer of length ERRBUF_LENGTH + 1.
 allocaErrBuf :: (CString -> IO a) -> IO a
-allocaErrBuf = allocaBytes ({#const ERRBUF_LENGTH#} + 1)
+allocaErrBuf f = allocaBytes ({#const ERRBUF_LENGTH#} + 1) $ \c_errbuf -> do
+  pokeByteOff c_errbuf 0 '\0' -- Initialize the buffer with empty string
+  f c_errbuf
 
 -- | Check if error buffer is empty. If not, throw a NDSError.
 checkErrBuf :: CString -> IO ()
@@ -101,11 +104,12 @@ foreign import ccall unsafe "Wrapper.h &hsnds2_free_buffer"
   hsnds2_free_buffer :: FinalizerPtr CDouble
 
 
-{#fun unsafe set_parameter {               `Connection'
-                           ,               `String'     -- parameter
-                           ,               `String'     -- value
-                           , allocaErrBuf- `String' checkErrBuf*-
-                           } -> `Bool' #}
+{#fun unsafe set_parameter as setParameter
+  {               `Connection'
+  ,               `String'     -- parameter
+  ,               `String'     -- value
+  , allocaErrBuf- `String' checkErrBuf*-
+  } -> `Bool' #}
 
 getParameter :: Connection -> String -> IO (Maybe String)
 getParameter conn param = do
@@ -120,7 +124,6 @@ getParameter conn param = do
   ,               `String'      -- parameter
   , allocaErrBuf- `String' checkErrBuf*-
   } -> `CString' #}
-
 
 
 --------------------------------------------------------------------------

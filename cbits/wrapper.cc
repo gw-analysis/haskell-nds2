@@ -148,8 +148,11 @@ char* hsnds2_get_parameter(NDS::connection* conn, const char* param, char* errbu
     assert(conn != nullptr && param != nullptr && errbuf != nullptr);
 
     try {
-        const char* value = conn->get_parameter(param).c_str();
-        return strdup(value);
+        const string& val = conn->get_parameter(param);
+        if (val.empty())
+            return nullptr;
+        else
+            return strdup(val.c_str());
     } catch (const exception& ex) {
         copy_errmsg(errbuf, ex.what());
         return nullptr;

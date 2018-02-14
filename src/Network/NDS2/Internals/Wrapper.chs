@@ -130,5 +130,6 @@ getParameter conn param = do
 {- Test Commands:
 conn <- connect "10.68.10.122" 8088 ProtocolTry
 let chanList = ["K1:PEM-TEMPERATURE_RACK_IMC", "K1:PEM-HUMIDITY_RACK_IMC"]
+setParameter conn "GAP_HANDLER" "STATIC_HANDLER_NAN"
 res <- fetch conn 1202078040 1202078160 chanList
 -}

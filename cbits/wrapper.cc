@@ -15,7 +15,7 @@ static inline void copy_errmsg(char* errbuf, const char* err)
 
 extern "C" {
 
-Connection* hsnds2_connect(const char* hostname, int port, protocol_type protocol, char* errbuf)
+connection* hsnds2_connect(const char* hostname, port_t port, protocol_type protocol, char* errbuf)
 {
     assert(hostname != nullptr && errbuf != nullptr);
     *errbuf = '\0';
@@ -42,7 +42,7 @@ void hsnds2_destroy(NDS::connection* conn)
 
 // C allocates list of channels; caller responsible for fereing them.
 // channels is NULL-terminated.
-int hsnds2_find_channels(NDS::connection* conn, const ChannelFilter* filter, Channel** channels, char* errbuf)
+int hsnds2_find_channels(NDS::connection* conn, const channel_filter* filter, channel* channels[], char* errbuf)
 {
     assert(conn != nullptr && filter != nullptr && channels != nullptr && errbuf != nullptr);
     *errbuf = '\0';
@@ -53,7 +53,7 @@ int hsnds2_find_channels(NDS::connection* conn, const ChannelFilter* filter, Cha
                                                 (NDS::channel::data_type)filter->dataTypeMask,
                                                 filter->minSampleRate,
                                                 filter->maxSampleRate);
-        *channels = (Channel*) calloc(channels_vec.size() + 1, sizeof(Channel));
+        *channels = (channel*) calloc(channels_vec.size() + 1, sizeof(channel));
         for (int i=0; i < channels_vec.size(); i++) {
             (*channels)[i].name = strdup(channels_vec[i]->Name().c_str());
             (*channels)[i].type = (channel_type) channels_vec[i]->Type();
@@ -64,7 +64,7 @@ int hsnds2_find_channels(NDS::connection* conn, const ChannelFilter* filter, Cha
             (*channels)[i].offset = channels_vec[i]->Offset();
             (*channels)[i].units = strdup(channels_vec[i]->Units().c_str());
         }
-        memset((*channels) + channels_vec.size(), 0, sizeof(Channel));
+        memset((*channels) + channels_vec.size(), 0, sizeof(channel));
 
         return channels_vec.size();
     } catch (const exception& ex) {
@@ -73,10 +73,10 @@ int hsnds2_find_channels(NDS::connection* conn, const ChannelFilter* filter, Cha
     }
 }
 
-void hsnds2_free_channels(Channel* channels)
+void hsnds2_free_channels(channel* channels)
 {
     assert(channels != nullptr);
-    Channel* cur_channel = channels;
+    channel* cur_channel = channels;
     while (cur_channel->name != nullptr) {
         free(cur_channel->name);
         free(cur_channel->units);
@@ -84,7 +84,7 @@ void hsnds2_free_channels(Channel* channels)
     free(channels);
 }
 
-int hsnds2_fetch(NDS::connection* conn, int64_t startGpsTime, int64_t endGpsTime, const char** channelList, size_t nChannels, double** buffers, char* errbuf)
+int hsnds2_fetch(NDS::connection* conn, int64_t startGpsTime, int64_t endGpsTime, const char* channelList[], size_t num_channels, double* buffers[], size_t buffer_lengths[], char* errbuf)
 {
     assert(conn != nullptr && buffers != nullptr);
     *errbuf = '\0';
@@ -94,54 +94,65 @@ int hsnds2_fetch(NDS::connection* conn, int64_t startGpsTime, int64_t endGpsTime
         return -EINVAL;
     }
 
-    memset(buffers, 0, sizeof(double*) * nChannels);
+    memset(buffers, 0, sizeof(double*) * num_channels);
+    memset(buffer_lengths, 0, sizeof(size_t) * num_channels);
 
     try {
         vector<string> channelListVec;
-        for (size_t i=0; i<nChannels; i++)
+        for (size_t i=0; i<num_channels; i++)
             channelListVec.emplace_back(channelList[i]);
         auto bufs = conn->fetch(startGpsTime, endGpsTime, channelListVec);
-        assert(bufs.size() == nChannels);
+        assert(bufs.size() == num_channels);
         for (size_t i = 0; i<bufs.size(); i++) {
             buffer_helper buf_data(*bufs[i]);
             buffers[i] = (double*) malloc(sizeof(double) * buf_data.size());
             for (size_t j=0; j < buf_data.size(); j++) {
                 buffers[i][j] = buf_data[j];
             }
+            buffer_lengths[i] = buf_data.size();
         }
     } catch (const exception& ex) {
         copy_errmsg(errbuf, ex.what());
 
         // Free any allocated buffers.
-        for (size_t i = 0; i < nChannels; i++)
+        for (size_t i = 0; i < num_channels; i++)
             if (buffers[i]) {
                 free(buffers[i]);
                 buffers[i] = nullptr;
+                buffer_lengths[i] = 0;
             }
 
         return -1;
     }
 }
 
-bool hsnds2_set_parameter(NDS::connection* conn, const char* param, const char* value)
+void hsnds2_free_buffer(double* buffer)
 {
-    assert(conn != nullptr && param != nullptr && value != nullptr);
+    if (buffer != nullptr)
+        free(buffer);
+}
+
+bool hsnds2_set_parameter(NDS::connection* conn, const char* param, const char* value, char* errbuf)
+{
+    assert(conn != nullptr && param != nullptr && value != nullptr && errbuf != nullptr);
     bool success = false;
     try {
         success = conn->set_parameter(param, value);
-    } catch (...) {
-        // TODO error message
+    } catch (const exception& ex) {
+        copy_errmsg(errbuf, ex.what());
         return false;
     }
     return success;
 }
 
-char* hsnds2_get_parameter(NDS::connection* conn, const char* param)
+char* hsnds2_get_parameter(NDS::connection* conn, const char* param, char* errbuf)
 {
+    assert(conn != nullptr && param != nullptr && errbuf != nullptr);
     try {
-        return strdup(conn->get_parameter(param).c_str());
-    } catch (...) {
-        // TODO error message
+        const char* value = conn->get_parameter(param).c_str();
+        return strdup(value);
+    } catch (const exception& ex) {
+        copy_errmsg(errbuf, ex.what());
         return nullptr;
     }
 }

@@ -17,9 +17,10 @@ library
   hs-source-dirs:      src
   exposed-modules:     Network.NDS2.Internals.Wrapper
   build-depends:       base >= 4.7 && < 5
+                     , vector >= 0.12 && < 0.13
   default-language:    Haskell2010
   c-sources:           cbits/wrapper.cc
-  include-dirs:         cbits
+  include-dirs:        cbits
   cc-options:          -std=c++11
   extra-libraries:     ndsxxwrap
   build-tools:         c2hs

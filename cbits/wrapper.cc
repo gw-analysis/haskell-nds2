@@ -6,7 +6,7 @@
 #include <cstring>
 using namespace std;
 
-inline void copy_errmsg(char* errbuf, const char* err)
+static inline void copy_errmsg(char* errbuf, const char* err)
 {
     strncpy(errbuf, err, ERRBUF_LENGTH);
     // Null-terminate the buffer in case of overflow.
@@ -15,11 +15,13 @@ inline void copy_errmsg(char* errbuf, const char* err)
 
 extern "C" {
 
-NDS::connection* connect(const char* hostname, int port, int protocol, char* errbuf)
+Connection* hsnds2_connect(const char* hostname, int port, protocol_type protocol, char* errbuf)
 {
     assert(hostname != nullptr && errbuf != nullptr);
+    *errbuf = '\0';
+
     try {
-        return new NDS::connection(hostname, port,
+        return new NDS::connection(string(hostname), port,
                                    (NDS::connection::protocol_type)protocol);
     } catch (const exception& ex) {
         copy_errmsg(errbuf, ex.what());
@@ -27,22 +29,24 @@ NDS::connection* connect(const char* hostname, int port, int protocol, char* err
     }
 }
 
-void disconnect(NDS::connection* conn)
+void hsnds2_disconnect(NDS::connection* conn)
 {
     assert(conn != nullptr);
     conn->close();
 }
 
-void destroy(NDS::connection* conn)
+void hsnds2_destroy(NDS::connection* conn)
 {
     delete conn;
 }
 
 // C allocates list of channels; caller responsible for fereing them.
 // channels is NULL-terminated.
-int findChannels(NDS::connection* conn, const ChannelFilter* filter, Channel** channels, char* errbuf)
+int hsnds2_find_channels(NDS::connection* conn, const ChannelFilter* filter, Channel** channels, char* errbuf)
 {
     assert(conn != nullptr && filter != nullptr && channels != nullptr && errbuf != nullptr);
+    *errbuf = '\0';
+
     try {
         auto channels_vec = conn->find_channels(filter->channelGlob,
                                                 (NDS::channel::channel_type)filter->channelTypeMask,
@@ -69,7 +73,7 @@ int findChannels(NDS::connection* conn, const ChannelFilter* filter, Channel** c
     }
 }
 
-void freeChannels(Channel* channels)
+void hsnds2_free_channels(Channel* channels)
 {
     assert(channels != nullptr);
     Channel* cur_channel = channels;
@@ -80,9 +84,10 @@ void freeChannels(Channel* channels)
     free(channels);
 }
 
-int fetch(NDS::connection* conn, int64_t startGpsTime, int64_t endGpsTime, const char** channelList, size_t nChannels, double** buffers, char* errbuf)
+int hsnds2_fetch(NDS::connection* conn, int64_t startGpsTime, int64_t endGpsTime, const char** channelList, size_t nChannels, double** buffers, char* errbuf)
 {
     assert(conn != nullptr && buffers != nullptr);
+    *errbuf = '\0';
 
     if (startGpsTime > endGpsTime) {
         strcpy(errbuf, "Invalid time interval");
@@ -118,7 +123,7 @@ int fetch(NDS::connection* conn, int64_t startGpsTime, int64_t endGpsTime, const
     }
 }
 
-bool setParameter(NDS::connection* conn, const char* param, const char* value)
+bool hsnds2_set_parameter(NDS::connection* conn, const char* param, const char* value)
 {
     assert(conn != nullptr && param != nullptr && value != nullptr);
     bool success = false;
@@ -131,7 +136,7 @@ bool setParameter(NDS::connection* conn, const char* param, const char* value)
     return success;
 }
 
-char* getParameter(NDS::connection* conn, const char* param)
+char* hsnds2_get_parameter(NDS::connection* conn, const char* param)
 {
     try {
         return strdup(conn->get_parameter(param).c_str());

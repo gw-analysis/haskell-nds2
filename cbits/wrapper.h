@@ -70,23 +70,23 @@ typedef struct {
 // Error message must be allocated to be >= 255 characters long.
 #define ERRBUF_LENGTH 255
 
-Connection* connect(const char* hostname, int port, int protocol, char* errbuf);
+Connection* hsnds2_connect(const char* hostname, int port, protocol_type protocol, char* errbuf);
 
-void disconnect(Connection* conn);
+void hsnds2_disconnect(Connection* conn);
 
-void destroy(Connection* conn);
+void hsnds2_destroy(Connection* conn);
 
 // C allocates list of channels; caller responsible for fereing them, by calling freeChannels.
-int findChannels(Connection* conn, const ChannelFilter* filter, Channel** channels, char* errbuf);
+int hsnds2_find_channels(Connection* conn, const ChannelFilter* filter, Channel** channels, char* errbuf);
 
-void freeChannels(Channel* channels);
+void hsnds2_free_channels(Channel* channels);
 
 // Caller is responsible for allocating the pointer array for buffers, not buffers themselves
-int fetch(Connection* conn, int64_t startGpsTime, int64_t endGpsTime, const char** channelList, size_t nChannels, double** buffers, char* errbuf);
+int hsnds2_fetch(Connection* conn, int64_t startGpsTime, int64_t endGpsTime, const char** channelList, size_t nChannels, double** buffers, char* errbuf);
 
-bool setParameter(Connection* conn, const char* param, const char* value);
+bool hsnds2_set_parameter(Connection* conn, const char* param, const char* value);
 
-char* getParameter(Connection* conn, const char* param);
+char* hsnds2_get_parameter(Connection* conn, const char* param);
 
 #ifdef __cplusplus
 }

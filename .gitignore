@@ -1,2 +1,6 @@
 .clang_complete
-wrapper/test
+.stack-work
+dist/
+cbits/test
+cbits/test_wrapper
+*.chs.h

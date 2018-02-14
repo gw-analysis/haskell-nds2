@@ -15,7 +15,7 @@ bool ends_with(const std::string& value, const std::string& ending)
 
 int main()
 {
-    NDS::connection conn("10.68.10.122", 8088);
+    NDS::connection conn("10.68.10.122", 8088, (NDS::connection::protocol_type)3);
     cout << "Conn ok" << endl;
 
     // Find if any channel has complex type (DataType() > 16384).

@@ -36,12 +36,12 @@ data NDSError = NDSError String deriving (Show, Typeable)
 instance Exception NDSError
 
 -- | Allocate a char* buffer of length ERRBUF_LENGTH + 1.
-allocaErrorBuf :: (CString -> IO a) -> IO a
-allocaErrorBuf = allocaBytes ({#const ERRBUF_LENGTH#} + 1)
+allocaErrBuf :: (CString -> IO a) -> IO a
+allocaErrBuf = allocaBytes ({#const ERRBUF_LENGTH#} + 1)
 
 -- | Check if error buffer is empty. If not, throw a NDSError.
-checkErrorBuf :: CString -> IO ()
-checkErrorBuf errbuf = do
+checkErrBuf :: CString -> IO ()
+checkErrBuf errbuf = do
   err <- peekCString errbuf
   when (length err > 0) $ throw (NDSError err)
 
@@ -53,6 +53,7 @@ withStringArray [] f = f nullPtr
 withStringArray ss f = do
   ps <- mapM (\s -> withCString s return) ss
   withArray ps f
+
 
 -- Map V.Vector CDouble -> V.Vector Double.
 -- In NHC, CDouble and Double are _not_ the same type.
@@ -67,10 +68,10 @@ mapRealToFrac = unsafeCoerce -- CAVEAT EMPTOR.
 -- peekCString :: CString -> IO String
 
 -- Function declarations
-{#fun unsafe connect { `String'
-                     , fromIntegral `Port'
-                     , `ProtocolType'
-                     , allocaErrorBuf- `String' checkErrorBuf*-
+{#fun unsafe connect {               `String'
+                     , fromIntegral  `Port'
+                     ,               `ProtocolType'
+                     , allocaErrBuf- `String'       checkErrBuf*-
                      } -> `Connection' #}
 
 {#fun unsafe disconnect { `Connection' } -> `()' #}
@@ -81,32 +82,45 @@ fetch conn startTime endTime channelList =
   withStringArray channelList $ \c_channelList ->
   allocaArray nChannels $ \c_buffers {- double*[]; double* allocated by C -} ->
   allocaArray nChannels $ \c_bufferLengths {- size_t[] -} ->
-  allocaErrorBuf $ \c_errbuf -> do
+  allocaErrBuf $ \c_errbuf -> do
     {#call unsafe fetch#} c_conn startTime endTime c_channelList (fromIntegral nChannels) c_buffers c_bufferLengths c_errbuf
-    checkErrorBuf c_errbuf
+    checkErrBuf c_errbuf
 
     buffers <- peekArray nChannels c_buffers
     bufferLengths <- peekArray nChannels c_bufferLengths
 
     forM (zip buffers bufferLengths) $ \(c_buf, bufLength) -> do
       bufPtr <- newForeignPtr hsnds2_free_buffer c_buf
+
+      -- mapRealToFrac maps Vector CDouble to Vector Double.
       return . mapRealToFrac $ V.unsafeFromForeignPtr0 bufPtr (fromIntegral bufLength)
 
   where nChannels = length channelList
 
-
-{-
-{#fun unsafe fetch { `Connection'
-                   , `GpsTime'
-                   , `GpsTime'
-                   , withStringArray* `[String]'& -- channel_list, num_channels
-                   , allocArray* `[[Double]]'  -- buffers, out
-                   , allocErrorBuf- `String' checkErrorBuf*-
-                   } -> `()' #}
--}
-
 foreign import ccall unsafe "Wrapper.h &hsnds2_free_buffer"
   hsnds2_free_buffer :: FinalizerPtr CDouble
+
+
+{#fun unsafe set_parameter {               `Connection'
+                           ,               `String'     -- parameter
+                           ,               `String'     -- value
+                           , allocaErrBuf- `String' checkErrBuf*-
+                           } -> `Bool' #}
+
+getParameter :: Connection -> String -> IO (Maybe String)
+getParameter conn param = do
+  c_val <- getParameter_ conn param
+  if c_val == nullPtr
+  then return Nothing
+  else Just <$> peekCString c_val
+
+
+{#fun unsafe get_parameter as getParameter_
+  {               `Connection'
+  ,               `String'      -- parameter
+  , allocaErrBuf- `String' checkErrBuf*-
+  } -> `CString' #}
+
 
 
 --------------------------------------------------------------------------

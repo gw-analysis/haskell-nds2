@@ -33,13 +33,13 @@ data FetchParams = FetchParams
   } deriving (Eq, Show, Generic, Default)
 makeFields ''FetchParams
 
-data StartRealtimeParams = StartRealtimeParams
-  { _startRealtimeParamsChannelNames :: ChannelNames
-  , _startRealtimeParamsStride       :: Stride
+data StreamParams = StartRealtimeParams
+  { _streamParamsChannelNames :: ChannelNames
+  , _streamParamsStride       :: Stride
   } deriving (Eq, Show, Generic)
-makeFields ''StartRealtimeParams
+makeFields ''StreamParams
 
-instance Default StartRealtimeParams where
+instance Default StreamParams where
   def = StartRealtimeParams [] 0
 
 --------------------------------------------------------------------------------
@@ -79,14 +79,14 @@ fetch conn params = I.fetch conn
                             (params^.channelNames)
 
 
--- | Start a realtime data stream.
-startRealtime :: Connection -> StartRealtimeParams  -> IO ()
-startRealtime conn params = I.startRealtime conn
-                                            (params^.channelNames)
-                                            (fromIntegral $ params^.stride)
+-- | Start a live data stream.
+initStream :: Connection -> StreamParams  -> IO ()
+initStream conn params = I.startRealtime conn
+                                         (params^.channelNames)
+                                         (fromIntegral $ params^.stride)
 
--- | Read the next data block from the realtime data stream.
-next :: Connection
-     -> Int                     -- ^ Number of channels
-     -> IO (Maybe [DataVector]) -- ^ A list of DataVectors, or Nothing if the data stream has finished
-next = I.next
+-- | Read the next data block from the live data stream.
+recvNext :: Connection
+         -> Int                     -- ^ Number of channels
+         -> IO (Maybe [DataVector]) -- ^ A list of DataVectors, or Nothing if the data stream has finished
+recvNext = I.next

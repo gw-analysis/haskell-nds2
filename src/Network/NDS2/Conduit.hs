@@ -2,7 +2,7 @@ module Network.NDS2.Conduit where
 
 import Network.NDS2
 import Network.NDS2.Types
-import Data.Conduit
+import Data.Conduit (Source, yield)
 import Control.Monad (forever)
 import Control.Monad.IO.Class
 import Control.Lens
@@ -18,3 +18,8 @@ ndsSource' conn params = do
 
   where
     nChannels = length $ params^.channelNames
+
+ndsSource :: ConnectParams -> StreamParams -> Source IO [DataVector]
+ndsSource connParams streamParams = do
+  conn <- liftIO $ connect connParams
+  ndsSource' conn streamParams

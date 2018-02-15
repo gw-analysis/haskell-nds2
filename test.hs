@@ -16,12 +16,5 @@ main = do
                  | otherwise = def & hostname .~ "10.68.10.122" & port .~ 8088
       chanList   | isLocal   = ["X1:PEM-1", "X1:PEM-2"]
                  | otherwise = ["K1:PEM-TEMPERATURE_RACK_IMC", "K1:PEM-HUMIDITY_RACK_IMC"]
-      nChannels = length chanList
 
-  conn <- connect connParams
-
-  setParameter conn "GAP_HANDLER" "STATIC_HANDLER_NAN"
-
-  runConduit $ (ndsSource' conn (def & channelNames .~ chanList)) .| sink
-  where
-    sink = CL.mapM_ print
+  runConduit $ (ndsSource connParams (def & channelNames .~ chanList)) .| CL.mapM_ print

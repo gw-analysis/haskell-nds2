@@ -22,4 +22,5 @@ ndsSource' conn params = do
 ndsSource :: ConnectParams -> StreamParams -> Source IO [DataVector]
 ndsSource connParams streamParams = do
   conn <- liftIO $ connect connParams
+  liftIO $ setParameter conn "GAP_HANDLER" "STATIC_HANDLER_NAN"
   ndsSource' conn streamParams

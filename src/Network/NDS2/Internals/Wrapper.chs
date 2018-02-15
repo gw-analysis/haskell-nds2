@@ -9,6 +9,7 @@ import Foreign.Ptr
 import Foreign.Marshal.Alloc
 import Foreign.Marshal.Array
 import Foreign.Storable
+import Foreign.C.Error(Errno, eRANGE)
 import System.IO.Unsafe
 import Foreign.C
 import Control.Monad
@@ -20,7 +21,6 @@ import qualified Data.Vector.Storable as V
 import Unsafe.Coerce
 
 import Control.Lens
-import Control.Arrow ((***))
 
 {#context prefix = "hsnds2"#}
 
@@ -37,13 +37,13 @@ type SizeT   = {#type size_t#}
 {#enum protocol_type as ProtocolType {underscoreToCase} deriving (Show, Eq) #}
 
 data Channel = Channel
-  { _name       :: String
-  , _type       :: ChannelType
-  , _dataType   :: DataType
-  , _sampleRate :: Float
-  , _gain       :: Float
-  , _slope      :: Float
-  , _offset     :: Float
+  { _name       :: !String
+  , _type       :: !ChannelType
+  , _dataType   :: !DataType
+  , _sampleRate :: !Float
+  , _gain       :: !Float
+  , _slope      :: !Float
+  , _offset     :: !Float
   } deriving (Show, Eq)
 
 makeFields ''Channel
@@ -97,8 +97,24 @@ vmapCDoubleToDouble = V.map realToFrac
 vmapCDoubleToDouble = unsafeCoerce -- CAVEAT EMPTOR. Works for GHC.
 #endif
 
+-- | Create a ForeignPtr of a Ptr allocated by C malloc.
+newForeignCPtr :: Ptr a -> IO (ForeignPtr a)
+newForeignCPtr = newForeignPtr c_free
 
--- peekCString :: CString -> IO String
+foreign import ccall unsafe "stdlib.h &free"
+  c_free :: FinalizerPtr a
+
+copyBuffers :: Int -> Ptr (Ptr CDouble) -> Ptr SizeT -> IO [V.Vector Double]
+copyBuffers nChannels c_buffers c_bufferLengths = do
+  buffers <- peekArray nChannels c_buffers
+  bufferLengths <- peekArray nChannels c_bufferLengths
+
+  forM (zip buffers bufferLengths) $ \(c_buf, bufLength) -> do
+    bufPtr <- newForeignPtr hsnds2_free_buffer c_buf
+
+    -- vmapCDoubleToDouble maps Vector CDouble to Vector Double.
+    return . vmapCDoubleToDouble $ V.unsafeFromForeignPtr0 bufPtr (fromIntegral bufLength)
+
 
 -- Function declarations
 {#fun unsafe connect {               `String'
@@ -112,25 +128,18 @@ vmapCDoubleToDouble = unsafeCoerce -- CAVEAT EMPTOR. Works for GHC.
 type ChannelNames = [String]
 
 fetch :: Connection -> GpsTime -> GpsTime -> ChannelNames -> IO [V.Vector Double]
-fetch conn startTime endTime channelList =
+fetch conn startTime endTime channelNames =
   withConnection conn $ \c_conn ->
-  withStringArray channelList $ \c_channelList ->
+  withStringArray channelNames $ \c_channelNames ->
   allocaArray nChannels $ \c_buffers {- double*[]; double* allocated by C -} ->
   allocaArray nChannels $ \c_bufferLengths {- size_t[] -} ->
   allocaErrBuf $ \c_errbuf -> do
-    {#call unsafe fetch#} c_conn startTime endTime c_channelList (fromIntegral nChannels) c_buffers c_bufferLengths c_errbuf
+    {#call unsafe fetch#} c_conn startTime endTime c_channelNames (fromIntegral nChannels) c_buffers c_bufferLengths c_errbuf
     checkErrBuf c_errbuf
 
-    buffers <- peekArray nChannels c_buffers
-    bufferLengths <- peekArray nChannels c_bufferLengths
+    copyBuffers nChannels c_buffers c_bufferLengths
 
-    forM (zip buffers bufferLengths) $ \(c_buf, bufLength) -> do
-      bufPtr <- newForeignPtr hsnds2_free_buffer c_buf
-
-      -- vmapCDoubleToDouble maps Vector CDouble to Vector Double.
-      return . vmapCDoubleToDouble $ V.unsafeFromForeignPtr0 bufPtr (fromIntegral bufLength)
-
-  where nChannels = length channelList
+  where nChannels = length channelNames
 
 foreign import ccall unsafe "Wrapper.h &hsnds2_free_buffer"
   hsnds2_free_buffer :: FinalizerPtr CDouble
@@ -153,14 +162,11 @@ getParameter conn param = do
 
 type ForeignCString = ForeignPtr CChar
 
-newForeignCString :: CString -> IO ForeignCString
-newForeignCString = newForeignPtr c_free
-
 {#fun unsafe get_parameter as getParameter_
   {               `Connection'
   ,               `String'      -- parameter
   , allocaErrBuf- `String' checkErrBuf*-
-  } -> `ForeignCString' newForeignCString*  #}
+  } -> `ForeignCString' newForeignCPtr*  #}
 
 type ChannelGlob = String
 
@@ -186,8 +192,32 @@ peekChannels ptr = peek ptr >>= newForeignPtr hsnds2_free_channels
 foreign import ccall unsafe "wrapper.h &hsnds2_free_channels"
   hsnds2_free_channels :: FinalizerPtr Channel
 
-foreign import ccall unsafe "stdlib.h &free"
-  c_free :: FinalizerPtr a
+
+type Stride = GpsTime
+
+startRealtime :: Connection -> ChannelNames -> Stride -> IO ()
+startRealtime conn channelNames stride =
+  withConnection conn $ \c_conn ->
+  withStringArray channelNames $ \c_channelNames ->
+  allocaErrBuf $ \c_errbuf -> do
+    {#call unsafe start_realtime#} c_conn c_channelNames (fromIntegral nChannels) stride c_errbuf
+    checkErrBuf c_errbuf
+
+  where nChannels = length channelNames
+
+next :: Connection -> Int -> IO (Maybe [V.Vector Double])
+next conn nChannels =
+  withConnection conn $ \c_conn ->
+  allocaArray nChannels $ \c_buffers {- double*[]; double* allocated by C -} ->
+  allocaArray nChannels $ \c_bufferLengths {- size_t[] -} ->
+  allocaErrBuf $ \c_errbuf -> do
+    ret <- {#call unsafe next#} c_conn c_buffers c_bufferLengths (fromIntegral nChannels) c_errbuf
+    checkErrBuf c_errbuf
+
+    if Errno (-ret) == eRANGE -- Out of range (iteration has finished).
+    then return Nothing
+    else Just <$> copyBuffers nChannels c_buffers c_bufferLengths
+
 
 --------------------------------------------------------------------------
 {- Test Commands:

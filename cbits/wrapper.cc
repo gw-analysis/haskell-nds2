@@ -13,6 +13,40 @@ static inline void copy_errmsg(char* errbuf, const char* err)
     errbuf[ERRBUF_LENGTH] = '\0';
 }
 
+static vector<string> make_string_vec(const char* strs[], size_t num)
+{
+    vector<string> vec;
+    for (size_t i=0; i<num; i++) {
+        assert(strs[i] != nullptr);
+        vec.emplace_back(strs[i]);
+    }
+    return vec;
+}
+
+static void dup_buffers(double* out_buffers[], size_t buffer_lengths[], const NDS::buffers_type& buffers)
+{
+    try {
+        for (auto i=0; i<buffers.size(); i++) {
+            buffer_helper buf_data(*buffers[i]);
+            out_buffers[i] = (double*) malloc(sizeof(double) * buf_data.size());
+            for (auto j=0; j < buf_data.size(); j++) {
+                out_buffers[i][j] = buf_data[j];
+            }
+            buffer_lengths[i] = buf_data.size();
+        }
+    } catch (const exception& ex) {
+        // Free any allocated buffers.
+        for (auto i=0; i < buffers.size(); i++)
+            if (out_buffers[i]) {
+                free(out_buffers[i]);
+                out_buffers[i] = nullptr;
+                buffer_lengths[i] = 0;
+            }
+
+        throw ex;
+    }
+}
+
 extern "C" {
 
 connection* hsnds2_connect(const char* hostname, port_t port, protocol_type protocol, char* errbuf)
@@ -110,51 +144,74 @@ void hsnds2_free_channels(channel* channels)
     free(channels);
 }
 
-int hsnds2_fetch(NDS::connection* conn, gps_time_t startGpsTime, gps_time_t endGpsTime, const char* channelList[], size_t num_channels, double* buffers[], size_t buffer_lengths[], char* errbuf)
+int hsnds2_fetch(NDS::connection* conn, gps_time_t start_gps_time, gps_time_t end_gps_time, const char* channel_names[], size_t num_channels, double* out_buffers[], size_t buffer_lengths[], char* errbuf)
 {
-    assert(conn != nullptr && buffers != nullptr);
+    assert(conn != nullptr && out_buffers != nullptr);
 
-    if (startGpsTime > endGpsTime) {
+    if (start_gps_time > end_gps_time) {
         strcpy(errbuf, "Invalid time interval");
         return -EINVAL;
     }
 
-    memset(buffers, 0, sizeof(double*) * num_channels);
+    memset(out_buffers, 0, sizeof(double*) * num_channels);
     memset(buffer_lengths, 0, sizeof(size_t) * num_channels);
 
     try {
-        vector<string> channelListVec;
-        for (size_t i=0; i<num_channels; i++)
-            channelListVec.emplace_back(channelList[i]);
-        auto bufs = conn->fetch(startGpsTime, endGpsTime, channelListVec);
+        vector<string> channel_name_vec = make_string_vec(channel_names, num_channels);
+        auto bufs = conn->fetch(start_gps_time, end_gps_time, channel_name_vec);
         assert(bufs.size() == num_channels);
-        for (size_t i = 0; i<bufs.size(); i++) {
-            buffer_helper buf_data(*bufs[i]);
-            buffers[i] = (double*) malloc(sizeof(double) * buf_data.size());
-            for (size_t j=0; j < buf_data.size(); j++) {
-                buffers[i][j] = buf_data[j];
-            }
-            buffer_lengths[i] = buf_data.size();
-        }
+        dup_buffers(out_buffers, buffer_lengths, bufs);
     } catch (const exception& ex) {
         copy_errmsg(errbuf, ex.what());
-
-        // Free any allocated buffers.
-        for (size_t i = 0; i < num_channels; i++)
-            if (buffers[i]) {
-                free(buffers[i]);
-                buffers[i] = nullptr;
-                buffer_lengths[i] = 0;
-            }
-
         return -1;
     }
+
+    return 0;
 }
 
 void hsnds2_free_buffer(double* buffer)
 {
     if (buffer != nullptr)
         free(buffer);
+}
+
+int hsnds2_start_realtime(NDS::connection* conn,
+                          const char* channel_names[],
+                          size_t num_channels,
+                          gps_time_t stride,
+                          char* errbuf) {
+    assert(conn != nullptr && channel_names != nullptr && errbuf != nullptr);
+
+    try {
+        vector<string> channel_name_vec =
+            make_string_vec(channel_names, num_channels);
+
+        conn->iterate(stride, channel_name_vec);
+    } catch (const exception& ex) {
+        copy_errmsg(errbuf, ex.what());
+        return -1;
+    }
+    return 0;
+}
+
+int hsnds2_next(NDS::connection* conn, double* out_buffers[], size_t buffer_lengths[], size_t num_channels, char* errbuf) {
+    assert(conn != nullptr && out_buffers != nullptr && buffer_lengths != nullptr && errbuf != nullptr);
+
+    memset(out_buffers, 0, sizeof(double*) * num_channels);
+    memset(buffer_lengths, 0, sizeof(size_t) * num_channels);
+
+    try {
+        auto bufs = conn->next();
+        assert(bufs.size() == num_channels);
+        dup_buffers(out_buffers, buffer_lengths, bufs);
+    } catch (const out_of_range&) {
+        return -ERANGE;
+    } catch (const exception& ex) {
+        copy_errmsg(errbuf, ex.what());
+        return -1;
+    }
+
+    return 0;
 }
 
 } // extern "C"

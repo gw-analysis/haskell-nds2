@@ -104,6 +104,19 @@ int hsnds2_fetch(connection* conn,
 // Free a single buffer allocated by hsnds2_fetch().
 void hsnds2_free_buffer(double* buffer);
 
+int hsnds2_start_realtime(connection* conn,
+                          const char* channel_list[],
+                          size_t num_channels,
+                          gps_time_t stride,
+                          char* errbuf);
+
+// Returns -ERANGE when the iteration is over.
+int hsnds2_next(connection* conn,
+                double* out_buffers[],
+                size_t buffer_lengths[],
+                size_t num_channels,
+                char* errbuf);
+
 #ifdef __cplusplus
 }
 #endif

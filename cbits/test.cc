@@ -41,6 +41,29 @@ int main()
     // TODO: test_nds_iterate_live_data.py
     // Seems to be able to stream.
 
+    // Test live data
+    // FIXME: there's a bug in NDS such that the following command returns only 1 block of data.
+    // The only way to continue operations seem to be making a new connection.
+
+    //conn.iterate(0, 6000, {"K1:PEM-TEMPERATURE_RACK_IMC", "K1:PEM-HUMIDITY_RACK_IMC"});
+    conn.iterate({"K1:PEM-TEMPERATURE_RACK_IMC", "K1:PEM-HUMIDITY_RACK_IMC"});
+    for (;;) {
+        try {
+            auto live_buf = conn.next(); // NOTE: throws std::out_of_range when done.
+            for (const auto& buf : live_buf) {
+                cout << endl;
+                cout << "-------" << buf->Name() << endl;
+                cout << "-------" << buf->DataType() << endl;
+                buffer_helper data(*buf);
+                for (int i=0; i<data.size(); i++) {
+                    cout << data[i] << ' ';
+                }
+                cout << endl;
+            }
+        } catch (const std::out_of_range&) {
+            break;
+        }
+    }
     auto buffer = conn.fetch(1202178040, 1202178140, chanList);
     for (const auto& buf : buffer) {
         cout << endl;
@@ -52,5 +75,6 @@ int main()
         }
         cout << endl;
     }
+
     return 0;
 }

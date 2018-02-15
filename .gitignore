@@ -4,3 +4,5 @@ dist/
 cbits/test
 cbits/test_wrapper
 *.chs.h
+test
+test_simple

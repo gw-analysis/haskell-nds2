@@ -17,12 +17,13 @@ import           Network.NDS2.Types
 
 import           Control.Lens
 
+--------------------------------------------------------------------------------
+
 data ConnectParams = ConnectParams
  { _connectParamsHostname     :: String       -- ^ Hostname
  , _connectParamsPort         :: Port         -- ^ TCP port
  , _connectParamsProtocolType :: ProtocolType -- ^ Protocol type. Defaults to ProtocolTry.
  } deriving (Eq, Show, Generic, Default)
-
 makeFields ''ConnectParams
 
 data FetchParams = FetchParams

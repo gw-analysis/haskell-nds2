@@ -4,7 +4,7 @@ import Network.NDS2
 import Network.NDS2.Types
 import Data.Conduit (Source, yield)
 import Control.Monad (forever)
-import Control.Monad.IO.Class
+import Control.Monad.Trans
 import Control.Lens
 
 ndsSource' :: Connection -> StreamParams -> Source IO [DataVector]

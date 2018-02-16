@@ -1,7 +1,7 @@
 name:                hsnds2
 version:             0.1.0.0
--- synopsis:
--- description:
+synopsis:            NDS2 client
+description:         A Haskell wrapper for the NDS2 clientA Haskell wrapper for the NDS2 client
 homepage:            https://github.com/githubuser/hsnds2#readme
 license:             BSD3
 license-file:        LICENSE
@@ -21,11 +21,11 @@ library
   other-modules:       Network.NDS2.Internals.Wrapper
                      , Network.NDS2.Internals.Types
   build-depends:       base >= 4.7 && < 5
+                     , mtl >= 2 && < 3
                      , vector >= 0.11 && < 0.13
                      , lens >= 4.10 && < 5
                      , data-default >= 0.7 && < 0.8
                      , conduit >= 1.1 && < 1.4
-                     , transformers >= 0.4 && < 0.6
   default-language:    Haskell2010
   extra-libraries:     stdc++
                      , ndsxxwrap

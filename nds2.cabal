@@ -1,8 +1,8 @@
-name:                hsnds2
+name:                nds2
 version:             0.1.0.0
 synopsis:            NDS2 client
 description:         A Haskell wrapper for the NDS2 clientA Haskell wrapper for the NDS2 client
-homepage:            https://github.com/githubuser/hsnds2#readme
+homepage:            https://github.com/gw-analysis/haskell-nds2
 license:             BSD3
 license-file:        LICENSE
 author:              Shaun Ren
@@ -38,4 +38,4 @@ library
 
 source-repository head
   type:     git
-  location: https://github.com/githubuser/hsnds2
+  location: https://github.com/gw-analysis/haskell-nds2

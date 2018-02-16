@@ -1,5 +1,5 @@
 // To build: g++ -lndsclient -lndsxxwrap test.cc -I /usr/local/include/nds2-client -L /usr/local/lib64/ -o test
-#include <nds_connection.hh>
+#include <nds2-client/nds_connection.hh>
 #include "buffer_helper.h"
 #include <iostream>
 using namespace std;

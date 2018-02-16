@@ -6,7 +6,7 @@
 
 #ifdef __cplusplus
 
-#include <nds_connection.hh>
+#include <nds2-client/nds_connection.hh>
 extern "C" {
 using connection_t = NDS::connection;
 

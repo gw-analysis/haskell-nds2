@@ -1,7 +1,7 @@
 #ifndef _BUFFER_HELPER_H_
 #define _BUFFER_HELPER_H_
 
-#include <nds_connection.hh>
+#include <nds2-client/nds_connection.hh>
 #include <stdint.h>
 
 // Helper class for accessing and interpreting data from NDS::buffer.

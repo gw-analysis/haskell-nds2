@@ -1,4 +1,4 @@
-#include <nds_connection.hh>
+#include <nds2-client/nds_connection.hh>
 #include "buffer_helper.h"
 #include "wrapper.h"
 #include <cassert>

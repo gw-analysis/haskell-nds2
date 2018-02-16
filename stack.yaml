@@ -59,8 +59,10 @@ extra-deps: []
 # arch: x86_64
 #
 # Extra directories used by stack for building
-extra-include-dirs: [/usr/local/include/nds2-client]
-extra-lib-dirs: [/usr/local/lib64]
+extra-include-dirs:
+  - /usr/local/include
+extra-lib-dirs:
+  - /usr/local/lib64
 #
 # Allow a newer minor version of GHC than the snapshot specifies
 # compiler-2check: newer-minor

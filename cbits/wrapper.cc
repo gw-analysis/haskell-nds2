@@ -49,8 +49,9 @@ static void dup_buffers(out_buffer_t out[], const NDS::buffers_type& buffers)
             dup_channel(*out[i].channelInfo, *buffers[i]);
 
             // Copy start/stop time
-            out[i].startGpsTime = buffers[i]->Start();
-            out[i].stopGpsTime  = buffers[i]->Stop();
+            out[i].startGpsSecond = buffers[i]->Start();
+            out[i].startGpsNanosecond = buffers[i]->StartNano();
+            out[i].stopGpsSecond  = buffers[i]->Stop();
 
             // Copy buffer data
             buffer_helper buf_data(*buffers[i]);

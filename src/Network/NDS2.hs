@@ -1,4 +1,3 @@
-{-# LANGUAGE DeriveAnyClass         #-}
 {-# LANGUAGE DeriveGeneric          #-}
 {-# LANGUAGE FlexibleInstances      #-}
 {-# LANGUAGE FunctionalDependencies #-}
@@ -23,20 +22,31 @@ data ConnectParams = ConnectParams
  { _connectParamsHostname     :: String       -- ^ Hostname
  , _connectParamsPort         :: Port         -- ^ TCP port
  , _connectParamsProtocolType :: ProtocolType -- ^ Protocol type. Defaults to ProtocolTry.
- } deriving (Eq, Show, Generic, Default)
+ } deriving (Eq, Show, Generic)
+
 makeFields ''ConnectParams
+
+instance Default ConnectParams where
+  def = ConnectParams "" 0 ProtocolTry
+
 
 data FetchParams = FetchParams
   { _fetchParamsStartGpsTime :: GpsSecond
   , _fetchParamsStopGpsTime  :: GpsSecond
   , _fetchParamsChannelNames :: ChannelNames
-  } deriving (Eq, Show, Generic, Default)
+  } deriving (Eq, Show, Generic)
+
 makeFields ''FetchParams
+
+instance Default FetchParams where
+  def = FetchParams 0 0 []
+
 
 data StreamParams = StartRealtimeParams
   { _streamParamsChannelNames :: ChannelNames
   , _streamParamsStride       :: Stride
   } deriving (Eq, Show, Generic)
+
 makeFields ''StreamParams
 
 instance Default StreamParams where

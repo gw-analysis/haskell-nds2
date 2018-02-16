@@ -23,6 +23,7 @@ import Network.NDS2.Internals.Types
 
 type CPort    = {#type port_t#}
 type CGpsSecond = {#type gps_second_t#}
+type CGpsNanosecond = {#type gps_nanosecond_t#}
 type CStride  = CGpsSecond
 type CSizeT   = {#type size_t#}
 
@@ -83,8 +84,9 @@ allocaBuffers n = allocaBytes (n * {#sizeof out_buffer_t#})
 peekBuffer :: Ptr Buffer -> IO Buffer
 peekBuffer p = Buffer
   <$> peekChannel p      -- Allocated by C
-  <*> liftM fromIntegral ({#get out_buffer_t->startGpsTime #} p)
-  <*> liftM fromIntegral ({#get out_buffer_t->stopGpsTime  #} p)
+  <*> liftM fromIntegral ({#get out_buffer_t->startGpsSecond     #} p)
+  <*> liftM fromIntegral ({#get out_buffer_t->startGpsNanosecond #} p)
+  <*> liftM fromIntegral ({#get out_buffer_t->stopGpsSecond      #} p)
   <*> peekTimeSeries p   -- Allocated by C
 
   where
@@ -141,8 +143,8 @@ foreign import ccall unsafe "Wrapper.h &hsnds2_free_timeseries"
 
 
 fetch :: Connection      -- ^ The NDS Connection handle
-      -> CGpsSecond      -- ^ Start GPS time
-      -> CGpsSecond      -- ^ Stop GPS time
+      -> CGpsSecond      -- ^ Start GPS time in seconds
+      -> CGpsSecond      -- ^ Stop GPS time in seconds
       -> [String]        -- ^ List of channel names
       -> IO [Buffer]     -- ^ List of out buffers
 fetch conn startTime stopTime channelNames =

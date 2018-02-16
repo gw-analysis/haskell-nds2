@@ -20,6 +20,7 @@ typedef struct _connection connection_t;
 
 typedef int32_t port_t;
 typedef int64_t gps_second_t;
+typedef int64_t gps_nanosecond_t;
 
 typedef enum {
       CHANNEL_TYPE_UNKNOWN = 0,	///< Unknown
@@ -63,11 +64,12 @@ typedef struct {
 
 // Output buffer type returned by fetch and next.
 typedef struct {
-    channel_t*   channelInfo;       // Allocated by C malloc
-    gps_second_t startGpsTime;
-    gps_second_t stopGpsTime;
-    size_t       timeseries_length;
-    double*      timeseries;        // Allocated by C malloc
+    channel_t*       channelInfo;       // Allocated by C malloc
+    gps_second_t     startGpsSecond;
+    gps_nanosecond_t startGpsNanosecond;
+    gps_second_t     stopGpsSecond;
+    size_t           timeseries_length;
+    double*          timeseries;        // Allocated by C malloc
 } out_buffer_t;
 
 // Error message must be allocated to be >= 255 characters long.
@@ -104,8 +106,8 @@ void hsnds2_free_channels(channel_t channels[]);
 
 // Caller is responsible for allocating the pointer array for buffers, not buffers themselves
 int hsnds2_fetch(connection_t* conn,
-                 gps_second_t startgps_time,
-                 gps_second_t endgps_time,
+                 gps_second_t start_gps_time,
+                 gps_second_t stop_gps_time,
                  const char* channel_list[],
                  size_t num_channels,
                  out_buffer_t out_buffers[],

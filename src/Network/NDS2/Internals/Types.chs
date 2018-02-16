@@ -21,13 +21,14 @@ import Foreign.C.String
 
 {#context prefix = "hsnds2"#}
 
-type Port         = Int
-type GpsSecond    = Int
-type ChannelGlob  = String
-type Stride       = GpsSecond
-type ChannelNames = [String]
+type Port          = Int
+type GpsSecond     = Int
+type GpsNanosecond = Int
+type ChannelGlob   = String
+type Stride        = GpsSecond
+type ChannelNames  = [String]
 
-type TimeSeries   = Vector Double
+type TimeSeries    = Vector Double
 
 
 {#enum channel_type as ChannelType {underscoreToCase} deriving (Show, Eq) #}
@@ -69,10 +70,11 @@ instance Storable Channel where
 
 -- | Corresponds to out_buffer_t struct.
 data Buffer = Buffer
- { _bufferChannelInfo  :: !Channel
- , _bufferStartGpsTime :: !GpsSecond
- , _bufferStopGpsTime  :: !GpsSecond
- , _bufferTimeSeries   :: !TimeSeries
+ { _bufferChannelInfo        :: !Channel
+ , _bufferStartGpsSecond     :: !GpsSecond
+ , _bufferStartGpsNanosecond :: !GpsNanosecond
+ , _bufferStopGpsTime        :: !GpsSecond
+ , _bufferTimeSeries         :: !TimeSeries
  } deriving (Show, Eq)
 
 makeFields ''Buffer

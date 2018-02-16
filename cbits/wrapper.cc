@@ -6,6 +6,7 @@
 #include <cstring>
 using namespace std;
 
+// Copy an error message to caller's error buffer. Truncates at ERRBUF_LENGTH.
 static inline void copy_errmsg(char* errbuf, const char* err)
 {
     strncpy(errbuf, err, ERRBUF_LENGTH);
@@ -13,6 +14,7 @@ static inline void copy_errmsg(char* errbuf, const char* err)
     errbuf[ERRBUF_LENGTH] = '\0';
 }
 
+// Construct a string vector out of char* list.
 static vector<string> make_string_vec(const char* strs[], size_t num)
 {
     vector<string> vec;
@@ -23,6 +25,7 @@ static vector<string> make_string_vec(const char* strs[], size_t num)
     return vec;
 }
 
+// Duplicate a channel struct, using strdup on name and units.
 static void dup_channel(channel_t& out, const NDS::channel& channel)
 {
     out.name = strdup(channel.Name().c_str());
@@ -35,6 +38,7 @@ static void dup_channel(channel_t& out, const NDS::channel& channel)
     out.units = strdup(channel.Units().c_str());
 }
 
+// Duplicate a list of out buffers, mallocing channelInfo and timeseries array.
 static void dup_buffers(out_buffer_t out[], const NDS::buffers_type& buffers)
 {
     const auto bufsize = buffers.size();
@@ -57,7 +61,7 @@ static void dup_buffers(out_buffer_t out[], const NDS::buffers_type& buffers)
 
             out[i].timeseries_length = buf_data.size();
         }
-    } catch (const exception& ex) {
+    } catch (...) {
         // Free any allocated buffers.
         for (auto i=0; i < bufsize; i++) {
             hsnds2_free_channel(out[i].channelInfo);
@@ -67,7 +71,8 @@ static void dup_buffers(out_buffer_t out[], const NDS::buffers_type& buffers)
             out[i].timeseries = nullptr;
         }
 
-        throw ex;
+        // Rethrow the exception.
+        throw;
     }
 }
 

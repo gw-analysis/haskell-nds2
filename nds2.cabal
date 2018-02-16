@@ -13,6 +13,12 @@ build-type:          Simple
 extra-source-files:  README.md
 cabal-version:       >=1.10
 
+flag stdcpp0x
+  description:
+    Use -std=c++0x instead of -std=c++11 when compiling C++ files.
+    Useful for compiling with old compilers.
+  default: False
+
 library
   hs-source-dirs:      src
   exposed-modules:     Network.NDS2
@@ -31,7 +37,12 @@ library
                      , ndsxxwrap
   c-sources:           cbits/wrapper.cc
   include-dirs:        cbits
-  cc-options:          -std=c++11
+
+  if flag(stdcpp0x)
+    cc-options:        -O2 -std=c++0x
+  else
+    cc-options:        -O2 -std=c++11
+
   ghc-options:         -pgmlg++
   build-tools:         c2hs
 

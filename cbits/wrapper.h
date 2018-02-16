@@ -8,17 +8,18 @@
 
 #include <nds_connection.hh>
 extern "C" {
-using connection = NDS::connection;
+using connection_t = NDS::connection;
 
 #else // __cplusplus
 
 // Opaque NDSconnection struct (C++ class).
-typedef struct _connection connection;
+typedef struct _connection connection_t;
 
 #endif // __cplusplus
 
+
 typedef int32_t port_t;
-typedef int64_t gps_time_t;
+typedef int64_t gps_second_t;
 
 typedef enum {
       CHANNEL_TYPE_UNKNOWN = 0,	///< Unknown
@@ -58,63 +59,71 @@ typedef struct {
     float slope;
     float offset;
     char* units;
- } channel;
+ } channel_t;
+
+// Output buffer type returned by fetch and next.
+typedef struct {
+    channel_t*   channelInfo;       // Allocated by C malloc
+    gps_second_t startGpsTime;
+    gps_second_t stopGpsTime;
+    size_t       timeseries_length;
+    double*      timeseries;        // Allocated by C malloc
+} out_buffer_t;
 
 // Error message must be allocated to be >= 255 characters long.
 #define ERRBUF_LENGTH 255
 
-connection* hsnds2_connect(const char* hostname,
+connection_t* hsnds2_connect(const char* hostname,
                            port_t port,
                            protocol_type protocol,
                            char* errbuf);
 
-void hsnds2_disconnect(connection* conn);
+void hsnds2_disconnect(connection_t* conn);
 
-void hsnds2_destroy(connection* conn);
+void hsnds2_destroy(connection_t* conn);
 
 // Returns a bool (0/1) indicating failure or success.
-int hsnds2_set_parameter(connection* conn,
+int hsnds2_set_parameter(connection_t* conn,
                          const char* param,
                          const char* value,
                          char* errbuf);
 
-char* hsnds2_get_parameter(connection* conn,
+char* hsnds2_get_parameter(connection_t* conn,
                            const char* param,
                            char* errbuf);
 
 // C allocates list of channels; caller responsible for fereing them, by calling freeChannels.
 // Returns number of channels found.
-int hsnds2_find_channels(connection* conn,
+int hsnds2_find_channels(connection_t* conn,
                          const char* channelGlob,
-                         channel** channels,
+                         channel_t** channels,
                          char* errbuf);
 
-void hsnds2_free_channels(channel* channels);
+void hsnds2_free_channel(channel_t* channel);
+void hsnds2_free_channels(channel_t channels[]);
 
 // Caller is responsible for allocating the pointer array for buffers, not buffers themselves
-int hsnds2_fetch(connection* conn,
-                 gps_time_t startgps_time,
-                 gps_time_t endgps_time,
+int hsnds2_fetch(connection_t* conn,
+                 gps_second_t startgps_time,
+                 gps_second_t endgps_time,
                  const char* channel_list[],
                  size_t num_channels,
-                 double* buffers[],
-                 size_t buffer_lengths[],
+                 out_buffer_t out_buffers[],
                  char* errbuf);
 
-// Free a single buffer allocated by hsnds2_fetch().
-void hsnds2_free_buffer(double* buffer);
+// Free a single timeseries array allocated by C malloc
+void hsnds2_free_timeseries(double* timeseries);
 
-int hsnds2_start_realtime(connection* conn,
+int hsnds2_start_realtime(connection_t* conn,
                           const char* channel_list[],
                           size_t num_channels,
-                          gps_time_t stride,
+                          gps_second_t stride,
                           char* errbuf);
 
 // Returns -ERANGE when the iteration is over.
-int hsnds2_next(connection* conn,
-                double* out_buffers[],
-                size_t buffer_lengths[],
+int hsnds2_next(connection_t* conn,
                 size_t num_channels,
+                out_buffer_t out_buffers[],
                 char* errbuf);
 
 #ifdef __cplusplus

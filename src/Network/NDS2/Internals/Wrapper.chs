@@ -14,23 +14,23 @@ import Foreign.Storable
 import Control.Monad
 import Control.Applicative ((<$>), (<*>))
 import Control.Exception
-import Unsafe.Coerce
 import qualified Data.Vector.Storable as Vec
+import Unsafe.Coerce
 
 import Network.NDS2.Internals.Types
 
 {#context prefix = "hsnds2"#}
 
 type CPort    = {#type port_t#}
-type CGpsTime = {#type gps_time_t#}
-type CStride  = CGpsTime
+type CGpsSecond = {#type gps_second_t#}
+type CStride  = CGpsSecond
 type CSizeT   = {#type size_t#}
 
 type ForeignCString = ForeignPtr CChar
 
-{#pointer *connection as Connection foreign finalizer destroy newtype#}
-
-{#pointer *channel as ChannelsPtr foreign -> Channel #}
+{#pointer *connection_t as Connection foreign finalizer destroy newtype#}
+{#pointer *channel_t as ChannelsPtr foreign -> Channel #}
+{#pointer *out_buffer_t as BufferPtr -> Buffer #}
 
 -------------------------------------------------------------------------------
 -- Utility functions
@@ -57,6 +57,62 @@ withStringArray ss f = do
   withArray ps f
 
 
+-- |Create a ForeignPtr of a Ptr allocated by C malloc.
+newForeignCPtr :: Ptr a -> IO (ForeignPtr a)
+newForeignCPtr = newForeignPtr c_free
+
+foreign import ccall unsafe "stdlib.h &free"
+  c_free :: FinalizerPtr a
+
+peekChannels :: Ptr (Ptr Channel) -> IO (ChannelsPtr)
+peekChannels ptr = peek ptr >>= newForeignPtr hsnds2_free_channels
+
+foreign import ccall unsafe "wrapper.h &hsnds2_free_channels"
+  hsnds2_free_channels :: FinalizerPtr Channel
+
+
+enumToCInt :: (Enum a) => a -> CInt
+enumToCInt = fromIntegral . fromEnum
+
+-- |Allocate an out_buffer_t* buffer with n elements.
+allocaBuffers :: Int -> (Ptr Buffer -> IO a) -> IO a
+allocaBuffers n = allocaBytes (n * {#sizeof out_buffer_t#})
+
+-- |Peek an out_buffer_t* struct, where some elements in the struct
+--  are allocated by C malloc.
+peekBuffer :: Ptr Buffer -> IO Buffer
+peekBuffer p = Buffer
+  <$> peekChannel p      -- Allocated by C
+  <*> liftM fromIntegral ({#get out_buffer_t->startGpsTime #} p)
+  <*> liftM fromIntegral ({#get out_buffer_t->stopGpsTime  #} p)
+  <*> peekTimeSeries p   -- Allocated by C
+
+  where
+    -- |Peek the channel in out_buffer_t, which is allocated by C malloc.
+    peekChannel p = do
+      chanPtr <- ({#get out_buffer_t->channelInfo #} p) >>= newForeignPtr hsnds2_free_channel
+      withForeignPtr chanPtr peek
+
+    -- |Peek the timeseries in out_buffer_t, which is allocated by C malloc.
+    peekTimeSeries p = do
+      len    <- liftM fromIntegral ({#get out_buffer_t->timeseries_length #} p)
+      bufPtr <- ({#get out_buffer_t->timeseries #} p) >>= newForeignPtr hsnds2_free_timeseries
+      return . vmapCDoubleToDouble $ Vec.unsafeFromForeignPtr0 bufPtr len
+
+-- |Peek a list of Buffers with n elements.
+peekBuffers :: Int -> Ptr Buffer -> IO [Buffer]
+peekBuffers n bufBegin = go [] $ bufBegin `plusPtr` (sizeofBuf * (n-1))
+  where
+    -- |Peek each Buffer element by element, in reverse order.
+    go l p
+      | p < bufBegin = return l
+      | otherwise    = do
+          b <- peekBuffer p
+          go (b:l) $ p `plusPtr` (-sizeofBuf)
+
+    sizeofBuf = {#sizeof out_buffer_t #}
+
+
 -- |Convert a CDouble Vector to a Double Vector.
 vmapCDoubleToDouble :: Vec.Vector CDouble -> Vec.Vector Double
 -- In NHC, CDouble and Double are _not_ the same type.
@@ -66,24 +122,12 @@ vmapCDoubleToDouble = Vec.map realToFrac
 vmapCDoubleToDouble = unsafeCoerce -- CAVEAT EMPTOR. Works for GHC.
 #endif
 
--- |Create a ForeignPtr of a Ptr allocated by C malloc.
-newForeignCPtr :: Ptr a -> IO (ForeignPtr a)
-newForeignCPtr = newForeignPtr c_free
 
-foreign import ccall unsafe "stdlib.h &free"
-  c_free :: FinalizerPtr a
+foreign import ccall unsafe "Wrapper.h &hsnds2_free_channel"
+  hsnds2_free_channel :: FinalizerPtr Channel
 
-copyBuffers :: Int -> Ptr (Ptr CDouble) -> Ptr CSizeT -> IO [Vec.Vector Double]
-copyBuffers nChannels c_buffers c_bufferLengths = do
-  buffers <- peekArray nChannels c_buffers
-  bufferLengths <- peekArray nChannels c_bufferLengths
-
-  forM (zip buffers bufferLengths) $ \(c_buf, bufLength) -> do
-    bufPtr <- newForeignPtr hsnds2_free_buffer c_buf
-    return . vmapCDoubleToDouble $ Vec.unsafeFromForeignPtr0 bufPtr (fromIntegral bufLength)
-
-enumToCInt :: (Enum a) => a -> CInt
-enumToCInt = fromIntegral . fromEnum
+foreign import ccall unsafe "Wrapper.h &hsnds2_free_timeseries"
+  hsnds2_free_timeseries :: FinalizerPtr CDouble
 
 -------------------------------------------------------------------------------
 
@@ -97,25 +141,21 @@ enumToCInt = fromIntegral . fromEnum
 
 
 fetch :: Connection      -- ^ The NDS Connection handle
-      -> CGpsTime        -- ^ Start GPS time
-      -> CGpsTime        -- ^ End GPS time
+      -> CGpsSecond      -- ^ Start GPS time
+      -> CGpsSecond      -- ^ Stop GPS time
       -> [String]        -- ^ List of channel names
-      -> IO [Vec.Vector Double] -- ^ List of Vectors containing the resulting data
-fetch conn startTime endTime channelNames =
+      -> IO [Buffer]     -- ^ List of out buffers
+fetch conn startTime stopTime channelNames =
   withConnection conn $ \c_conn ->
   withStringArray channelNames $ \c_channelNames ->
-  allocaArray nChannels $ \c_buffers {- double*[]; double* allocated by C -} ->
-  allocaArray nChannels $ \c_bufferLengths {- size_t[] -} ->
+  allocaBuffers nChannels $ \c_buffers {- out_buffer_t[] -} ->
   allocaErrBuf $ \c_errbuf -> do
-    {#call unsafe fetch#} c_conn startTime endTime c_channelNames (fromIntegral nChannels) c_buffers c_bufferLengths c_errbuf
+    {#call unsafe fetch#} c_conn startTime stopTime c_channelNames (fromIntegral nChannels) c_buffers c_errbuf
     checkErrBuf c_errbuf
 
-    copyBuffers nChannels c_buffers c_bufferLengths
+    peekBuffers nChannels c_buffers
 
   where nChannels = length channelNames
-
-foreign import ccall unsafe "Wrapper.h &hsnds2_free_buffer"
-  hsnds2_free_buffer :: FinalizerPtr CDouble
 
 
 {#fun unsafe set_parameter as setParameter
@@ -147,10 +187,6 @@ findChannels conn chanGlob = do
   withForeignPtr channelsPtr $ peekArray len
 
 
-peekChannels :: Ptr (Ptr Channel) -> IO (ChannelsPtr)
-peekChannels ptr = peek ptr >>= newForeignPtr hsnds2_free_channels
-
-
 -- findChannels_ :: Connection -> ChannelGlob -> IO (Int, Ptr Channel)
 {#fun unsafe find_channels as findChannels_
   { `Connection'
@@ -158,10 +194,6 @@ peekChannels ptr = peek ptr >>= newForeignPtr hsnds2_free_channels
   , alloca- `ChannelsPtr' peekChannels*
   , allocaErrBuf- `String' checkErrBuf*-
   } -> `Int' #}
-
-
-foreign import ccall unsafe "wrapper.h &hsnds2_free_channels"
-  hsnds2_free_channels :: FinalizerPtr Channel
 
 
 startRealtime :: Connection -> [String] -> CStride -> IO ()
@@ -174,25 +206,14 @@ startRealtime conn channelNames stride =
 
   where nChannels = length channelNames
 
-next :: Connection -> Int -> IO (Maybe [Vec.Vector Double])
+next :: Connection -> Int -> IO (Maybe [Buffer])
 next conn nChannels =
   withConnection conn $ \c_conn ->
-  allocaArray nChannels $ \c_buffers {- double*[]; double* allocated by C -} ->
-  allocaArray nChannels $ \c_bufferLengths {- size_t[] -} ->
+  allocaBuffers nChannels $ \c_buffers {- out_buffer_t[] -} ->
   allocaErrBuf $ \c_errbuf -> do
-    ret <- {#call unsafe next#} c_conn c_buffers c_bufferLengths (fromIntegral nChannels) c_errbuf
+    ret <- {#call unsafe next#} c_conn (fromIntegral nChannels) c_buffers c_errbuf
     checkErrBuf c_errbuf
 
     if Errno (-ret) == eRANGE -- Out of range (iteration has finished).
     then return Nothing
-    else Just <$> copyBuffers nChannels c_buffers c_bufferLengths
-
-
---------------------------------------------------------------------------
-{- Test Commands:
-conn <- connect "10.68.10.122" 8088 ProtocolTry
-let chanList = ["K1:PEM-TEMPERATURE_RACK_IMC", "K1:PEM-HUMIDITY_RACK_IMC"]
-setParameter conn "GAP_HANDLER" "STATIC_HANDLER_NAN"
-findChannels conn "*CRY-TEMPERATURE*"
-res <- fetch conn 1202078040 1202078160 chanList
--}
+    else Just <$> peekBuffers nChannels c_buffers

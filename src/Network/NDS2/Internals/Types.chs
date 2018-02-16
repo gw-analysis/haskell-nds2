@@ -13,12 +13,21 @@ import Control.Lens
 import Control.Exception
 import Data.Default
 import Data.Typeable
+import Data.Vector.Storable (Vector)
 import Foreign.Storable
 import Foreign.C.String
 
 #include <wrapper.h>
 
 {#context prefix = "hsnds2"#}
+
+type Port         = Int
+type GpsSecond    = Int
+type ChannelGlob  = String
+type Stride       = GpsSecond
+type ChannelNames = [String]
+
+type TimeSeries   = Vector Double
 
 
 {#enum channel_type as ChannelType {underscoreToCase} deriving (Show, Eq) #}
@@ -30,6 +39,7 @@ import Foreign.C.String
 instance Default ProtocolType where
   def = ProtocolTry
 
+-- | Corresponds to channel_t struct.
 data Channel = Channel
   { _channelName       :: !String
   , _channelChannelType:: !ChannelType
@@ -43,19 +53,29 @@ data Channel = Channel
 makeFields ''Channel
 
 instance Storable Channel where
-  sizeOf _    = {#sizeof channel #}
-  alignment _ = {#alignof channel #}
+  sizeOf _    = {#sizeof  channel_t #}
+  alignment _ = {#alignof channel_t #}
 
   peek p = Channel
-    <$> ({#get channel->name #} p >>= peekCString)
-    <*> liftM (toEnum . fromIntegral) ({#get channel->type       #} p)
-    <*> liftM (toEnum . fromIntegral) ({#get channel->dataType   #} p)
-    <*> liftM realToFrac              ({#get channel->sampleRate #} p)
-    <*> liftM realToFrac              ({#get channel->gain       #} p)
-    <*> liftM realToFrac              ({#get channel->slope      #} p)
-    <*> liftM realToFrac              ({#get channel->offset     #} p)
+    <$> ({#get channel_t->name #} p >>= peekCString)
+    <*> liftM (toEnum . fromIntegral) ({#get channel_t->type       #} p)
+    <*> liftM (toEnum . fromIntegral) ({#get channel_t->dataType   #} p)
+    <*> liftM realToFrac              ({#get channel_t->sampleRate #} p)
+    <*> liftM realToFrac              ({#get channel_t->gain       #} p)
+    <*> liftM realToFrac              ({#get channel_t->slope      #} p)
+    <*> liftM realToFrac              ({#get channel_t->offset     #} p)
 
   poke _ = undefined
+
+-- | Corresponds to out_buffer_t struct.
+data Buffer = Buffer
+ { _bufferChannelInfo  :: !Channel
+ , _bufferStartGpsTime :: !GpsSecond
+ , _bufferStopGpsTime  :: !GpsSecond
+ , _bufferTimeSeries   :: !TimeSeries
+ } deriving (Show, Eq)
+
+makeFields ''Buffer
 
 
 data NDSError = NDSError String deriving (Show, Typeable)

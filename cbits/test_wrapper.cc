@@ -15,9 +15,11 @@ int main()
         return 0;
     }
 
-    channel** channels_ptr = new channel*;
+    channel_t** channels_ptr = new channel_t*;
     hsnds2_find_channels(conn, "*CRY-TEMPERATURE*", channels_ptr, errbuf);
     hsnds2_free_channels(*channels_ptr);
     hsnds2_destroy(conn);
+
+    delete channels_ptr;
     return 0;
 }

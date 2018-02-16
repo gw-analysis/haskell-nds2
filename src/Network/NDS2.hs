@@ -27,8 +27,8 @@ data ConnectParams = ConnectParams
 makeFields ''ConnectParams
 
 data FetchParams = FetchParams
-  { _fetchParamsStartGpsTime :: GpsTime
-  , _fetchParamsEndGpsTime   :: GpsTime
+  { _fetchParamsStartGpsTime :: GpsSecond
+  , _fetchParamsStopGpsTime  :: GpsSecond
   , _fetchParamsChannelNames :: ChannelNames
   } deriving (Eq, Show, Generic, Default)
 makeFields ''FetchParams
@@ -72,10 +72,10 @@ findChannels :: Connection -> ChannelGlob -> IO [Channel]
 findChannels = I.findChannels
 
 -- | Fetch data from the server.
-fetch :: Connection -> FetchParams -> IO [DataVector]
+fetch :: Connection -> FetchParams -> IO [Buffer]
 fetch conn params = I.fetch conn
                             (fromIntegral $ params^.startGpsTime)
-                            (fromIntegral $ params^.endGpsTime)
+                            (fromIntegral $ params^.stopGpsTime)
                             (params^.channelNames)
 
 
@@ -88,5 +88,5 @@ initStream conn params = I.startRealtime conn
 -- | Read the next data block from the live data stream.
 recvNext :: Connection
          -> Int                     -- ^ Number of channels
-         -> IO (Maybe [DataVector]) -- ^ A list of DataVectors, or Nothing if the data stream has finished
+         -> IO (Maybe [Buffer]) -- ^ A list of buffers, or Nothing if the data stream has finished
 recvNext = I.next

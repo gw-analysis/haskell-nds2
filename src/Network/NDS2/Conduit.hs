@@ -7,7 +7,7 @@ import Control.Monad (forever)
 import Control.Monad.Trans
 import Control.Lens
 
-ndsSource' :: Connection -> StreamParams -> Source IO [DataVector]
+ndsSource' :: Connection -> StreamParams -> Source IO [Buffer]
 ndsSource' conn params = do
   liftIO $ initStream conn params
   forever $ do
@@ -19,7 +19,7 @@ ndsSource' conn params = do
   where
     nChannels = length $ params^.channelNames
 
-ndsSource :: ConnectParams -> StreamParams -> Source IO [DataVector]
+ndsSource :: ConnectParams -> StreamParams -> Source IO [Buffer]
 ndsSource connParams streamParams = do
   conn <- liftIO $ connect connParams
   liftIO $ setParameter conn "GAP_HANDLER" "STATIC_HANDLER_NAN"

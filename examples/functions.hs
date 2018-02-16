@@ -18,7 +18,7 @@ main = do
   let chanList = ["K1:PEM-TEMPERATURE_RACK_IMC", "K1:PEM-HUMIDITY_RACK_IMC"]
       nChannels = length chanList
   res <- fetch conn $ def & startGpsTime .~ 1202078040
-                          & endGpsTime   .~ 1202078160
+                          & stopGpsTime  .~ 1202078160
                           & channelNames .~ chanList
 
 

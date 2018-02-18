@@ -8,6 +8,7 @@ module Network.NDS2.Types
   , Connection
   , Port
   , GpsSecond
+  , GpsNanosecond
   , ChannelGlob
   , Stride
   , ChannelNames

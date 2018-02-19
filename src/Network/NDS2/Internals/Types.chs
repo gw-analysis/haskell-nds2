@@ -73,7 +73,7 @@ data Buffer = Buffer
  { _bufferChannelInfo        :: !Channel
  , _bufferStartGpsSecond     :: !GpsSecond
  , _bufferStartGpsNanosecond :: !GpsNanosecond
- , _bufferStopGpsTime        :: !GpsSecond
+ , _bufferStopGpsSecond      :: !GpsSecond
  , _bufferTimeSeries         :: !TimeSeries
  } deriving (Show, Eq)
 

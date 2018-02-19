@@ -7,7 +7,20 @@ import Control.Monad (forever)
 import Control.Monad.Trans
 import Control.Lens
 
-ndsSource' :: Connection -> StreamParams -> Source IO [Buffer]
+-- | Conduit source that streams live data from a NDS server.
+ndsSource :: ConnectParams     -- ^ Connect parameters.
+          -> StreamParams      -- ^ Stream parameters.
+          -> Source IO [Buffer]
+ndsSource connParams streamParams = do
+  conn <- liftIO $ connect connParams
+  liftIO $ setParameter conn "GAP_HANDLER" "STATIC_HANDLER_NAN"
+  ndsSource' conn streamParams
+
+-- | Conduit source that streams live data from a NDS server.
+-- In this variant, the connection is assumed to be pre-established.
+ndsSource' :: Connection         -- ^ The connection handle.
+           -> StreamParams       -- ^ Stream parameters.
+           -> Source IO [Buffer]
 ndsSource' conn params = do
   liftIO $ initStream conn params
   forever $ do
@@ -18,9 +31,3 @@ ndsSource' conn params = do
 
   where
     nChannels = length $ params^.channelNames
-
-ndsSource :: ConnectParams -> StreamParams -> Source IO [Buffer]
-ndsSource connParams streamParams = do
-  conn <- liftIO $ connect connParams
-  liftIO $ setParameter conn "GAP_HANDLER" "STATIC_HANDLER_NAN"
-  ndsSource' conn streamParams

@@ -1,31 +1,41 @@
 {-# LANGUAGE ForeignFunctionInterface #-}
 
-module Network.NDS2.Internals.Wrapper (Connection, connect, disconnect, fetch, setParameter, getParameter, findChannels, startRealtime, next) where
+module Network.NDS2.Internals.Wrapper
+  (Connection
+  , connect
+  , disconnect
+  , fetch
+  , setParameter
+  , getParameter
+  , findChannels
+  , startRealtime
+  , next) where
 
 #include <wrapper.h>
 
-import Foreign.C
-import Foreign.Ptr
-import Foreign.Marshal.Alloc
-import Foreign.Marshal.Array
-import Foreign.ForeignPtr
-import Foreign.Storable
---import Foreign.C.Error(Errno, eRANGE)
-import Control.Monad
 import Control.Applicative ((<$>), (<*>))
 import Control.Exception
+import Control.Monad
+import Foreign.C
+import Foreign.ForeignPtr
+import Foreign.Marshal.Alloc
+import Foreign.Marshal.Array
+import Foreign.Ptr
+import Foreign.Storable
 import qualified Data.Vector.Storable as Vec
 import Unsafe.Coerce
 
 import Network.NDS2.Internals.Types
 
+
 {#context prefix = "hsnds2"#}
 
-type CPort    = {#type port_t#}
-type CGpsSecond = {#type gps_second_t#}
+type CPort          = {#type port_t          #}
+type CGpsSecond     = {#type gps_second_t    #}
 type CGpsNanosecond = {#type gps_nanosecond_t#}
-type CStride  = CGpsSecond
-type CSizeT   = {#type size_t#}
+type CSizeT         = {#type size_t          #}
+type CStride        = CGpsSecond
+
 
 type ForeignCString = ForeignPtr CChar
 
@@ -65,13 +75,14 @@ newForeignCPtr = newForeignPtr c_free
 foreign import ccall unsafe "stdlib.h &free"
   c_free :: FinalizerPtr a
 
+-- |Peek channel_t**, where the channel list is allocated by C malloc.
 peekChannels :: Ptr (Ptr Channel) -> IO (ChannelsPtr)
 peekChannels ptr = peek ptr >>= newForeignPtr hsnds2_free_channels
 
 foreign import ccall unsafe "wrapper.h &hsnds2_free_channels"
   hsnds2_free_channels :: FinalizerPtr Channel
 
-
+-- |Convert an enum to CInt.
 enumToCInt :: (Enum a) => a -> CInt
 enumToCInt = fromIntegral . fromEnum
 
@@ -90,22 +101,24 @@ peekBuffer p = Buffer
   <*> peekTimeSeries p   -- Allocated by C
 
   where
-    -- |Peek the channel in out_buffer_t, which is allocated by C malloc.
+    -- Peek the channel in out_buffer_t, which is allocated by C malloc.
     peekChannel p = do
-      chanPtr <- ({#get out_buffer_t->channelInfo #} p) >>= newForeignPtr hsnds2_free_channel
+      chanPtr <- ({#get out_buffer_t->channelInfo #} p)
+                 >>= newForeignPtr hsnds2_free_channel
       withForeignPtr chanPtr peek
 
-    -- |Peek the timeseries in out_buffer_t, which is allocated by C malloc.
+    -- Peek the timeseries in out_buffer_t, which is allocated by C malloc.
     peekTimeSeries p = do
       len    <- liftM fromIntegral ({#get out_buffer_t->timeseries_length #} p)
-      bufPtr <- ({#get out_buffer_t->timeseries #} p) >>= newForeignPtr hsnds2_free_timeseries
+      bufPtr <- ({#get out_buffer_t->timeseries #} p)
+                >>= newForeignPtr hsnds2_free_timeseries
       return . vmapCDoubleToDouble $ Vec.unsafeFromForeignPtr0 bufPtr len
 
 -- |Peek a list of Buffers with n elements.
 peekBuffers :: Int -> Ptr Buffer -> IO [Buffer]
 peekBuffers n bufBegin = go [] $ bufBegin `plusPtr` (sizeofBuf * (n-1))
   where
-    -- |Peek each Buffer element by element, in reverse order.
+    -- Peek each Buffer element by element, in reverse order.
     go l p
       | p < bufBegin = return l
       | otherwise    = do
@@ -152,7 +165,13 @@ fetch conn startTime stopTime channelNames =
   withStringArray channelNames $ \c_channelNames ->
   allocaBuffers nChannels $ \c_buffers {- out_buffer_t[] -} ->
   allocaErrBuf $ \c_errbuf -> do
-    {#call unsafe fetch#} c_conn startTime stopTime c_channelNames (fromIntegral nChannels) c_buffers c_errbuf
+    {#call unsafe fetch#} c_conn
+                          startTime
+                          stopTime
+                          c_channelNames
+                          (fromIntegral nChannels)
+                          c_buffers
+                          c_errbuf
     checkErrBuf c_errbuf
 
     peekBuffers nChannels c_buffers
@@ -203,7 +222,11 @@ startRealtime conn channelNames stride =
   withConnection conn $ \c_conn ->
   withStringArray channelNames $ \c_channelNames ->
   allocaErrBuf $ \c_errbuf -> do
-    {#call unsafe start_realtime#} c_conn c_channelNames (fromIntegral nChannels) stride c_errbuf
+    {#call unsafe start_realtime#} c_conn
+                                   c_channelNames
+                                   (fromIntegral nChannels)
+                                   stride
+                                   c_errbuf
     checkErrBuf c_errbuf
 
   where nChannels = length channelNames
@@ -213,7 +236,10 @@ next conn nChannels =
   withConnection conn $ \c_conn ->
   allocaBuffers nChannels $ \c_buffers {- out_buffer_t[] -} ->
   allocaErrBuf $ \c_errbuf -> do
-    ret <- {#call unsafe next#} c_conn (fromIntegral nChannels) c_buffers c_errbuf
+    ret <- {#call unsafe next#} c_conn
+                                (fromIntegral nChannels)
+                                c_buffers
+                                c_errbuf
     checkErrBuf c_errbuf
 
     if Errno (-ret) == eRANGE -- Out of range (iteration has finished).

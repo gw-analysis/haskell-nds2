@@ -5,16 +5,16 @@
 {-# LANGUAGE TemplateHaskell        #-}
 {-# LANGUAGE TypeSynonymInstances   #-}
 
-module Network.NDS2 where
+module Network.NDS2
+  ( module Network.NDS2
+  , module Network.NDS2.Types
+  ) where
 
-import           Network.NDS2.Types
-
+import           Control.Lens
 import           Data.Default
 import           GHC.Generics
 import qualified Network.NDS2.Internals.Wrapper as I
 import           Network.NDS2.Types
-
-import           Control.Lens
 
 --------------------------------------------------------------------------------
 
@@ -42,7 +42,7 @@ instance Default FetchParams where
   def = FetchParams 0 0 []
 
 
-data StreamParams = StartRealtimeParams
+data StreamParams = StreamParams
   { _streamParamsChannelNames :: ChannelNames
   , _streamParamsStride       :: Stride
   } deriving (Eq, Show, Generic)
@@ -50,7 +50,7 @@ data StreamParams = StartRealtimeParams
 makeFields ''StreamParams
 
 instance Default StreamParams where
-  def = StartRealtimeParams [] 0
+  def = StreamParams [] 0
 
 --------------------------------------------------------------------------------
 
